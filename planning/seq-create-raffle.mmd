@@ -1,0 +1,25 @@
+sequenceDiagram
+    participant AdminPortal as Admin Portal
+    participant BizAPI as Business Logic API
+    participant BusinessDB as Business DB
+    participant API_GW as Raffle System Interface
+    participant Protocol as Protocol Adapter
+    participant TicketCore as Ticket Mgmt Core
+    participant GLICoreDB as GLI Core DB
+    participant Audit as GLI Audit Service
+
+    AdminPortal->>BizAPI: POST /admin/raffles  
+    activate BizAPI
+    BizAPI->>BusinessDB: INSERT INTO raffles (id,name,start,end,status)  
+    BusinessDB-->>BizAPI: {raffleId:"R124"}  
+    BizAPI->>API_GW: POST /raffle/R124/init  
+    API_GW->>Protocol: transform → { raffle_id:"R124", initialState:"created" }  
+    Protocol->>TicketCore: POST /tickets/raffle R124/setup  
+    TicketCore->>GLICoreDB: INSERT INTO raffles_core (raffle_id,state)  
+    GLICoreDB-->>TicketCore: Ack  
+    TicketCore-->>Protocol: { status:"core_initialized" }  
+    Protocol-->>API_GW: { status:"initialized" }  
+    API_GW-->>BizAPI: { status:"initialized" }  
+    BizAPI->>Audit: log event "RaffleCreated"  
+    deactivate BizAPI
+    BizAPI-->>AdminPortal: 201 Created { raffleId:"R124" }

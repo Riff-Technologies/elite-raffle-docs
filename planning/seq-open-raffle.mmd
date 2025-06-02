@@ -1,0 +1,26 @@
+sequenceDiagram
+    participant AdminPortal as Admin Portal
+    participant BizAPI as Business Logic API
+    participant BusinessDB as Business DB
+    participant API_GW as Raffle System Interface
+    participant Protocol as Protocol Adapter
+    participant TicketCore as Ticket Mgmt Core
+    participant GLICoreDB as GLI Core DB
+    participant Audit as GLI Audit Service
+    participant EventBus as EventBridge
+
+    AdminPortal->>BizAPI: POST /admin/raffles/R124/start  
+    activate BizAPI
+    BizAPI->>BusinessDB: UPDATE raffles SET status="open" WHERE id="R124"  
+    BizAPI->>API_GW: POST /raffle/R124/open  
+    API_GW->>Protocol: transform → { raffle_id:"R124", action:"open" }  
+    Protocol->>TicketCore: PUT /tickets/raffle/R124/state {state:"open"}  
+    TicketCore->>GLICoreDB: UPDATE raffles_core SET state="open"  
+    GLICoreDB-->>TicketCore: Ack  
+    TicketCore-->>Protocol: { status:"open" }  
+    Protocol-->>API_GW: { status:"open" }  
+    API_GW-->>BizAPI: { status:"open" }  
+    BizAPI->>Audit: log event "RaffleOpened"  
+    BizAPI->>EventBus: publish "RaffleOpened" {raffleId:"R124"}  
+    deactivate BizAPI
+    BizAPI-->>AdminPortal: 200 OK { status:"open" }

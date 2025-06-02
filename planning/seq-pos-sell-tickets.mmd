@@ -1,0 +1,28 @@
+sequenceDiagram
+    participant POS as POS Mobile App
+    participant BizAPI as Business Logic API
+    participant Payment as Payment Lambda
+    participant Stripe as Stripe
+    participant TicketCore as Ticket Mgmt Core
+    participant GLICoreDB as GLI Core DB
+    participant BusinessDB as Business DB
+    participant Audit as GLI Audit Service
+    participant EventBus as EventBridge
+
+    POS->>BizAPI: POST /raffles/R124/purchase { quantity:3, paymentInfo }  
+    activate BizAPI
+    BizAPI->>Payment: Create PaymentIntent  
+    Payment->>Stripe: API call  
+    Stripe-->>Payment: { paymentIntent:"pi_123", status:"succeeded" }  
+    Payment-->>BizAPI: success  
+    BizAPI->>TicketCore: POST /tickets/generate {raffleId:"R124",quantity:3}  
+    TicketCore->>GLICoreDB: INSERT 3 tickets (next seq)  
+    GLICoreDB-->>TicketCore: ["TKT-00050","TKT-00051","TKT-00052"]  
+    TicketCore-->>BizAPI: ticketIds  
+    BizAPI->>TicketCore: PUT /tickets/{id}/status {status:"sold"} (×3)  
+    TicketCore->>GLICoreDB: UPDATE tickets  
+    BizAPI->>BusinessDB: INSERT transactions & ticket assignments  
+    BizAPI->>Audit: log event "TicketSold" (details)  
+    BizAPI->>EventBus: publish "TicketSold" {raffleId:"R124",tickets:[…]}  
+    deactivate BizAPI
+    BizAPI-->>POS: 200 OK { tickets:["TKT-00050","TKT-00051","TKT-00052"] }

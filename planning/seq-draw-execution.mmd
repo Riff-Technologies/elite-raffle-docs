@@ -1,0 +1,39 @@
+sequenceDiagram
+    participant AdminPortal as Admin Portal
+    participant BizAPI as Business Logic API
+    participant API_GW as Raffle System Interface
+    participant Protocol as Protocol Adapter
+    participant DrawEngine as Draw Engine
+    participant RNG as RNG Service
+    participant TicketCore as Ticket Mgmt Core
+    participant WinnerDet as Winner Determination
+    participant GLIDB as GLI Core DB
+    participant Audit as GLI Audit Service
+    participant BusinessDB as Business DB
+    participant EventBus as EventBridge/SNS
+    participant PubSite as Public Website
+
+    AdminPortal->>BizAPI: POST /draw/execute { raffleId:"R123" }
+    BizAPI->>BusinessDB: UPDATE raffles SET status="executing"
+    BizAPI->>API_GW: POST /draw/initiate { raffleId:"R123" }
+    API_GW->>Protocol: transform → { raffle_id:"R123", range:{1–100} }
+    Protocol->>DrawEngine: POST /draw/initiate
+    DrawEngine->>DrawEngine: S3: state="pending_random"
+    DrawEngine->>RNG: generateRandom("R123",1–100)
+    RNG-->>DrawEngine: { randomNumber: 42, seedHash:"h1f9…" }
+    RNG->>Audit: log RNG event (seed, ts, result)
+    DrawEngine->>DrawEngine: S3: state="random_generated"
+    DrawEngine->>WinnerDet: invoke with { raffleId:"R123", randomNumber:42 }
+    WinnerDet->>TicketCore: GET /tickets/raffle/R123
+    TicketCore-->>WinnerDet: [TKT-00001…TKT-00100]
+    WinnerDet->>WinnerDet: compute winnerIndex=42 ⇒ TKT-00042
+    WinnerDet->>GLIDB: INSERT INTO winners(raffleId, ticketId)
+    WinnerDet->>TicketCore: PUT /tickets/TKT-00042/status {status:"won"}
+    WinnerDet->>Audit: log winner determination
+    WinnerDet-->>DrawEngine: { winningTicketId:"TKT-00042" }
+    DrawEngine->>DrawEngine: S3: state="winner_determined"
+    DrawEngine->>BusinessDB: UPDATE raffles SET status="completed", winnerId="TKT-00042"
+    DrawEngine->>EventBus: Publish "DrawCompleted" { raffleId, winnerId }
+    PubSite->>API_GW: GET /draw/R123/results
+    API_GW->>BusinessDB: SELECT status,winnerId FROM raffles
+    BusinessDB-->>PubSite: { status:"completed", winnerId:"TKT-00042" }

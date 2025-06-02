@@ -1,0 +1,128 @@
+flowchart TD
+    %% External Interface (Controlled Entry Point)
+    subgraph "CONTROLLED ENTRY POINT"
+        API_ENTRY["🔗 GLI System Interface<br/>API Gateway + Lambda<br/>Authentication & Validation<br/>Rate Limiting: 1000 req/sec"]
+    end
+
+    %% GLI-31 Certified Core System
+    subgraph "GLI-31 CERTIFIED CORE RAFFLE SYSTEM"
+        direction TB
+        
+        %% Core Processing Components
+        subgraph "CORE GLI FUNCTIONS"
+            direction TB
+            RNG["🎲 Random Number Generator<br/>━━━━━━━━━━━━━━━━━━━━━━━━<br/>• AWS Lambda (Python 3.11)<br/>• Direct CloudHSM Integration<br/>• FIPS 140-2 Level 3<br/>• Hardware-based True RNG<br/>• 512MB Memory, 30s Timeout<br/>• Private Subnet Only<br/>━━━━━━━━━━━━━━━━━━━━━━━━<br/>Input: Raffle ID, Range<br/>Output: Secure Random + Seed Hash<br/>Performance: <100ms, 1000 ops/min"]
+            
+            DRAW["⚙️ Draw Engine<br/>━━━━━━━━━━━━━━━━━━━━━━━━<br/>• ECS Fargate Container<br/>• 1 vCPU, 2GB Memory<br/>• S3 State Management<br/>• Auto-scaling: 1-3 instances<br/>• Atomic State Transitions<br/>• Rollback Capabilities<br/>━━━━━━━━━━━━━━━━━━━━━━━━<br/>States: PENDING → ACTIVE → <br/>DRAWING → COMPLETED"]
+            
+            TICKET["🎫 Ticket Management Core<br/>━━━━━━━━━━━━━━━━━━━━━━━━<br/>• ECS Fargate Container<br/>• 2 vCPU, 4GB Memory<br/>• Sequential Numbering<br/>• Batch Processing<br/>• Duplicate Prevention<br/>• Collision Detection<br/>━━━━━━━━━━━━━━━━━━━━━━━━<br/>Validation: Checksums + Integrity<br/>Range: Pre-reserved per POS device"]
+            
+            WINNER["🏆 Winner Determination<br/>━━━━━━━━━━━━━━━━━━━━━━━━<br/>• AWS Lambda (Python 3.11)<br/>• 1GB Memory, 5min Timeout<br/>• Reserved Concurrency: 5<br/>• Mathematical Fairness Proof<br/>• Verifiable Random Function<br/>• Multi-tier Prize Support<br/>━━━━━━━━━━━━━━━━━━━━━━━━<br/>Tests: Chi-square, Kolmogorov-Smirnov<br/>Documentation: GLI Math Proof"]
+        end
+        
+        %% Data Storage
+        subgraph "GLI DATA STORAGE"
+            direction TB
+            CORE_DB[("🔐 GLI Core Database<br/>━━━━━━━━━━━━━━━━━━━━━━━━<br/>Aurora PostgreSQL 14.x<br/>Instance: db.r6g.large<br/>2 vCPU, 16GB RAM<br/>Multi-AZ Deployment<br/>Encrypted at Rest (KMS)<br/>SSL/TLS 1.2+ in Transit<br/>━━━━━━━━━━━━━━━━━━━━━━━━<br/>Tables:<br/>• raffles (draw states)<br/>• tickets (sequential numbers)<br/>• draws (RNG seeds, results)<br/>• audit_events (all actions)<br/>━━━━━━━━━━━━━━━━━━━━━━━━<br/>Performance:<br/>8K read IOPS, 3K write IOPS<br/>Connection Pool: 20-40 per service")]
+        end
+        
+        %% Audit & Compliance
+        subgraph "GLI AUDIT & COMPLIANCE"
+            direction TB
+            AUDIT["📝 GLI Audit Service<br/>━━━━━━━━━━━━━━━━━━━━━━━━<br/>• AWS Lambda (Python 3.11)<br/>• 256MB Memory, 30s Timeout<br/>• EventBridge Triggered<br/>• Real-time Processing<br/>• Cryptographic Signatures<br/>• Tamper Detection<br/>━━━━━━━━━━━━━━━━━━━━━━━━<br/>Captures ALL GLI Events:<br/>• RNG Operations<br/>• Draw State Changes<br/>• Ticket Generation<br/>• Winner Determination<br/>• Admin Actions"]
+            
+            LOGS[("📚 Immutable Audit Logs<br/>━━━━━━━━━━━━━━━━━━━━━━━━<br/>S3 with Object Lock<br/>Tamper-Evident Storage<br/>Cryptographic Hash Chains<br/>Write-Once, Read-Many<br/>━━━━━━━━━━━━━━━━━━━━━━━━<br/>Retention Policy:<br/>• S3 Standard: 90 days<br/>• S3 Glacier: 1-7 years<br/>• Deep Archive: 7+ years<br/>━━━━━━━━━━━━━━━━━━━━━━━━<br/>GLI Compliance Features:<br/>• Legal hold capability<br/>• Integrity verification<br/>• Time-stamped entries<br/>• Non-repudiation")]
+        end
+    end
+
+    %% Hardware Security Module
+    subgraph "HARDWARE SECURITY"
+        HSM["🔒 CloudHSM Cluster<br/>━━━━━━━━━━━━━━━━━━━━━━━━<br/>CloudHSM v2 (Single-AZ)<br/>FIPS 140-2 Level 3<br/>Hardware Key Material<br/>AES-256, RSA-2048/4096<br/>━━━━━━━━━━━━━━━━━━━━━━━━<br/>Key Features:<br/>• True Hardware RNG<br/>• Dedicated HSM Access<br/>• 90-day Key Rotation<br/>• Cross-region Backup<br/>• Automated Failover (4hr RTO)<br/>━━━━━━━━━━━━━━━━━━━━━━━━<br/>Cost Optimization:<br/>Single-AZ deployment<br/>KMS for non-RNG operations"]
+    end
+
+    %% GLI Compliance Monitoring
+    subgraph "GLI COMPLIANCE MONITORING"
+        direction TB
+        COMPLIANCE["📊 Compliance Dashboard<br/>━━━━━━━━━━━━━━━━━━━━━━━━<br/>Real-time GLI Status<br/>Automated Testing Scripts<br/>Statistical Fairness Validation<br/>Entropy Quality Monitoring<br/>━━━━━━━━━━━━━━━━━━━━━━━━<br/>Critical Alerts:<br/>• RNG entropy below threshold<br/>• Audit log gaps > 5 minutes<br/>• Unauthorized access attempts<br/>• Draw fairness deviation<br/>• HSM connectivity issues"]
+        
+        TESTING["🧪 Automated Compliance Testing<br/>━━━━━━━━━━━━━━━━━━━━━━━━<br/>Continuous GLI-31 Validation<br/>RNG Entropy Analysis<br/>Audit Log Integrity Checks<br/>Fairness Statistical Tests<br/>━━━━━━━━━━━━━━━━━━━━━━━━<br/>Test Schedule:<br/>• RNG Tests: Every operation<br/>• Fairness Tests: Daily<br/>• Integrity Checks: Hourly<br/>• Full Validation: Weekly<br/>━━━━━━━━━━━━━━━━━━━━━━━━<br/>Saves 20-30 hours per<br/>certification cycle"]
+    end
+
+    %% Access Control for GLI Core
+    subgraph "GLI ACCESS CONTROL"
+        direction TB
+        ACCESS["🔑 GLI Administrative Access<br/>━━━━━━━━━━━━━━━━━━━━━━━━<br/>Role-Based Access Control<br/>Multi-person Approval Required<br/>Break-glass Procedures<br/>━━━━━━━━━━━━━━━━━━━━━━━━<br/>GLI-Admin Role:<br/>• Minimal personnel only<br/>• Draw system access<br/>• 4-hour emergency access max<br/>• Mandatory post-incident review<br/>━━━━━━━━━━━━━━━━━━━━━━━━<br/>All Admin Actions Logged:<br/>• User ID + timestamp<br/>• Action type + parameters<br/>• Success/failure status<br/>• Immutable audit trail"]
+    end
+
+    %% Offline POS Integration Point
+    subgraph "OFFLINE POS COMPLIANCE"
+        direction TB
+        OFFLINE["📱 Offline POS Operations<br/>━━━━━━━━━━━━━━━━━━━━━━━━<br/>8-Hour Offline Capability<br/>Pre-Reserved Ticket Ranges<br/>Conflict-Free Design<br/>━━━━━━━━━━━━━━━━━━━━━━━━<br/>GLI Compliance Features:<br/>• 1000 tickets pre-allocated<br/>• Sequential numbering maintained<br/>• Audit trail preserved offline<br/>• Automatic reconciliation<br/>• Range exhaustion alerts<br/>━━━━━━━━━━━━━━━━━━━━━━━━<br/>Requires GLI Validation:<br/>8-hour duration approval<br/>Offline audit procedures"]
+    end
+
+    %% Data Flow Connections with Labels
+    API_ENTRY -->|"Validated Requests<br/>Authentication Required"| RNG
+    API_ENTRY -->|"Draw Commands<br/>Admin Authorization"| DRAW
+    API_ENTRY -->|"Ticket Requests<br/>Range Validation"| TICKET
+    API_ENTRY -->|"Winner Queries<br/>Results Only"| WINNER
+
+    %% Core System Internal Flows
+    RNG -->|"Entropy + Seed Hash<br/>Cryptographic Proof"| CORE_DB
+    DRAW -->|"State Transitions<br/>Atomic Operations"| CORE_DB
+    TICKET -->|"Sequential Numbers<br/>Batch Operations"| CORE_DB
+    WINNER -->|"Results + Proof<br/>Mathematical Validation"| CORE_DB
+
+    %% Hardware Security Integration
+    RNG <-->|"Hardware RNG Calls<br/>FIPS 140-2 Level 3"| HSM
+
+    %% Audit Trail Flows
+    RNG -->|"All RNG Operations<br/>Seed + Timestamp"| AUDIT
+    DRAW -->|"State Changes<br/>Admin Actions"| AUDIT
+    TICKET -->|"Generation Events<br/>Range Allocations"| AUDIT
+    WINNER -->|"Determination Process<br/>Algorithm Results"| AUDIT
+    
+    AUDIT -->|"Immutable Logging<br/>Cryptographic Signatures"| LOGS
+
+    %% Compliance Monitoring
+    RNG -.->|"Entropy Quality<br/>Performance Metrics"| COMPLIANCE
+    DRAW -.->|"Operation Status<br/>State Validation"| COMPLIANCE
+    TICKET -.->|"Numbering Integrity<br/>Collision Detection"| COMPLIANCE
+    WINNER -.->|"Fairness Statistics<br/>Algorithm Validation"| COMPLIANCE
+    AUDIT -.->|"Log Integrity<br/>Gap Detection"| COMPLIANCE
+
+    %% Automated Testing
+    CORE_DB -.->|"Data Validation<br/>Integrity Checks"| TESTING
+    LOGS -.->|"Audit Verification<br/>Chain Validation"| TESTING
+    HSM -.->|"Entropy Testing<br/>Key Validation"| TESTING
+
+    %% Access Control
+    ACCESS -.->|"Administrative Control<br/>RBAC Enforcement"| RNG
+    ACCESS -.->|"Draw Authorization<br/>Multi-person Approval"| DRAW
+    ACCESS -.->|"System Configuration<br/>Break-glass Access"| TICKET
+    ACCESS -.->|"Result Verification<br/>Audit Access"| WINNER
+
+    %% Offline POS Integration
+    OFFLINE -->|"Pre-reserved Ranges<br/>Conflict Prevention"| TICKET
+    OFFLINE -->|"Offline Audit Events<br/>Delayed Synchronization"| AUDIT
+
+    %% Backup and Recovery (Implicit)
+    CORE_DB -.->|"Automated Backup<br/>Cross-region Replication"| LOGS
+    HSM -.->|"Key Backup<br/>Disaster Recovery"| LOGS
+
+    %% Style Classes
+    classDef gli fill:#ffebee,stroke:#d32f2f,stroke-width:3px,color:#000,font-weight:bold
+    classDef security fill:#f1f8e9,stroke:#2e7d32,stroke-width:3px,color:#000,font-weight:bold
+    classDef audit fill:#f3e5f5,stroke:#7b1fa2,stroke-width:3px,color:#000,font-weight:bold
+    classDef database fill:#e8eaf6,stroke:#3f51b5,stroke-width:3px,color:#000,font-weight:bold
+    classDef compliance fill:#fff3e0,stroke:#f57c00,stroke-width:3px,color:#000,font-weight:bold
+    classDef access fill:#e0f2f1,stroke:#00796b,stroke-width:3px,color:#000,font-weight:bold
+    classDef offline fill:#fce4ec,stroke:#c2185b,stroke-width:3px,color:#000,font-weight:bold
+
+    %% Apply styles
+    class RNG,DRAW,TICKET,WINNER,API_ENTRY gli
+    class HSM security
+    class AUDIT,LOGS audit
+    class CORE_DB database
+    class COMPLIANCE,TESTING compliance
+    class ACCESS access
+    class OFFLINE offline

@@ -1,0 +1,90 @@
+sequenceDiagram
+    participant POS as POS Mobile App
+    participant BL as Business Logic API
+    participant PAY as Payment Service
+    participant RI as Raffle Interface
+    participant GLI as GLI Core System
+    participant DB as GLI Database
+    participant AUDIT as GLI Audit
+    participant LOGS as Audit Logs
+    participant ADMIN as Admin Portal
+    participant NOTIFY as Notification Service
+
+    Note over POS, NOTIFY: Raffle Transaction Flow - Complete Cycle
+
+    %% Phase 1: Ticket Purchase
+    rect rgb(230, 240, 255)
+        Note over POS, PAY: Phase 1: Ticket Purchase Transaction
+        POS->>BL: POST /raffle/purchase-tickets<br/>{raffle_id, quantity, customer_info}
+        BL->>BL: Validate customer & raffle status
+        BL->>PAY: Process payment<br/>{amount, customer_payment_method}
+        PAY-->>BL: Payment confirmation<br/>{transaction_id, status: "completed"}
+        
+        BL->>RI: Request ticket allocation<br/>{raffle_id, quantity, payment_ref}
+        RI->>RI: Validate request format
+        RI->>GLI: Generate tickets<br/>{raffle_id, quantity}
+        GLI->>DB: INSERT ticket records<br/>{ticket_numbers, raffle_id, timestamp}
+        GLI->>AUDIT: Log ticket generation<br/>{action: "TICKET_GENERATED", details}
+        AUDIT->>LOGS: Store immutable audit record
+        GLI-->>RI: Return ticket details<br/>{ticket_numbers[], allocation_id}
+        RI-->>BL: Ticket allocation response
+        
+        BL->>BL: Store business transaction<br/>{customer_id, payment_id, ticket_refs}
+        BL-->>POS: Purchase confirmation<br/>{tickets[], receipt_data}
+    end
+
+    %% Phase 2: Draw Execution
+    rect rgb(255, 240, 230)
+        Note over ADMIN, GLI: Phase 2: Draw Execution
+        ADMIN->>BL: Initiate draw<br/>{raffle_id, admin_user_id}
+        BL->>BL: Verify admin permissions
+        BL->>RI: Request draw initiation<br/>{raffle_id, authorized_by}
+        RI->>RI: Validate draw eligibility
+        RI->>GLI: Initialize draw process<br/>{raffle_id}
+        
+        GLI->>DB: UPDATE raffle status = "DRAWING"
+        GLI->>AUDIT: Log draw initiation<br/>{action: "DRAW_STARTED", raffle_id}
+        AUDIT->>LOGS: Store audit record
+        
+        GLI->>GLI: Generate random number<br/>(HSM-backed RNG)
+        GLI->>DB: SELECT eligible tickets<br/>WHERE raffle_id = ? AND status = "ACTIVE"
+        GLI->>GLI: Determine winning ticket<br/>(using RNG result)
+        GLI->>DB: UPDATE winning ticket status
+        GLI->>DB: INSERT draw results<br/>{winner_ticket, rng_seed, timestamp}
+        
+        GLI->>AUDIT: Log draw completion<br/>{action: "DRAW_COMPLETED", winner_details}
+        AUDIT->>LOGS: Store final audit record
+        GLI-->>RI: Draw results<br/>{winner_ticket, draw_id}
+        RI-->>BL: Winner information
+        BL-->>ADMIN: Draw completion confirmation
+    end
+
+    %% Phase 3: Winner Notification & Prize Distribution
+    rect rgb(240, 255, 240)
+        Note over BL, NOTIFY: Phase 3: Winner Processing
+        BL->>BL: Lookup winner customer info<br/>(from business database)
+        BL->>NOTIFY: Send winner notification<br/>{customer_email, prize_details}
+        NOTIFY->>NOTIFY: Generate winner email/SMS
+        NOTIFY-->>BL: Notification sent confirmation
+        
+        BL->>BL: Create prize claim record<br/>{winner_id, prize_amount, claim_deadline}
+        BL->>ADMIN: Update admin dashboard<br/>(winner announced)
+    end
+
+    %% Phase 4: Public Results Display
+    rect rgb(255, 240, 255)
+        Note over BL, NOTIFY: Phase 4: Public Results
+        Note right of BL: Public website queries for results
+        BL->>RI: Get public draw results<br/>{raffle_id}
+        RI->>GLI: Retrieve draw results<br/>(public information only)
+        GLI->>DB: SELECT draw results, winner ticket#
+        GLI-->>RI: Public results data<br/>{winner_ticket_number, draw_time}
+        RI-->>BL: Sanitized results<br/>(no personal info)
+        BL-->>BL: Update public display cache
+    end
+
+    %% Audit & Compliance Trail
+    rect rgb(240, 240, 240)
+        Note over AUDIT, LOGS: Continuous Audit Trail
+        Note right of LOGS: All GLI actions logged:<br/>• Ticket generation with timestamps<br/>• RNG seed values and results<br/>• Draw state changes<br/>• Admin actions<br/>• System integrity checks
+    end

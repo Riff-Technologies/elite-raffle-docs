@@ -1,0 +1,93 @@
+flowchart TD
+    %% Data Flow Through System Layers
+    subgraph "Data Flow & State Changes"
+        
+        %% Initial State
+        subgraph "Initial State"
+            RS["Raffle Status: ACTIVE<br/>Tickets Available: 100<br/>Tickets Sold: 0"]
+        end
+        
+        %% Ticket Purchase Flow
+        subgraph "Ticket Purchase Data Flow"
+            PD["Purchase Data<br/>{customer_id: 'C001'<br/>quantity: 5<br/>payment: $50}"]
+            
+            subgraph "Business Layer Data"
+                BD["Business DB<br/>customers: +1 record<br/>transactions: +1 record<br/>payments: +1 record"]
+            end
+            
+            subgraph "GLI Core Data"
+                GD["GLI DB<br/>tickets: +5 records<br/>ticket_numbers: [1001-1005]<br/>raffle_id: R001<br/>status: ACTIVE"]
+            end
+            
+            subgraph "Audit Data"
+                AD["Audit Logs<br/>timestamp: 2025-05-21T10:30:00Z<br/>action: TICKET_GENERATED<br/>details: {raffle_id, ticket_range}<br/>hash: abc123..."]
+            end
+        end
+        
+        %% State After Purchase
+        subgraph "State After Purchase"
+            RS2["Raffle Status: ACTIVE<br/>Tickets Available: 95<br/>Tickets Sold: 5<br/>Revenue: $50"]
+        end
+        
+        %% Draw Process Data Flow
+        subgraph "Draw Process Data Flow"
+            DD["Draw Data<br/>{raffle_id: R001<br/>admin_id: A001<br/>timestamp: 2025-05-21T15:00:00Z}"]
+            
+            subgraph "RNG Process"
+                RNG["HSM RNG<br/>seed: 0x4f2a8b1c<br/>random_value: 47<br/>calculation: 47 % 100 = 47<br/>winning_ticket: 1047"]
+            end
+            
+            subgraph "Winner Determination"
+                WD["Winner Data<br/>winning_ticket: 1047<br/>customer_id: C078<br/>prize_amount: $1000<br/>draw_id: D001"]
+            end
+            
+            subgraph "Updated GLI State"
+                GD2["GLI DB Updates<br/>raffle.status: COMPLETED<br/>ticket_1047.status: WINNER<br/>draw_results: +1 record<br/>audit_trail: +3 records"]
+            end
+        end
+        
+        %% Final State
+        subgraph "Final State"
+            RS3["Raffle Status: COMPLETED<br/>Total Tickets Sold: 100<br/>Winner: Ticket #1047<br/>Prize Claimed: PENDING"]
+        end
+        
+        %% Data Relationships
+        RS --> PD
+        PD --> BD
+        PD --> GD
+        PD --> AD
+        BD --> RS2
+        GD --> RS2
+        
+        RS2 --> DD
+        DD --> RNG
+        RNG --> WD
+        WD --> GD2
+        GD2 --> RS3
+        
+        %% External Integrations
+        subgraph "External Data Flows"
+            STRIPE["Stripe Response<br/>{transaction_id: 'txn_123'<br/>status: 'succeeded'<br/>amount: 5000<br/>currency: 'usd'}"]
+            
+            EMAIL["Email Notification<br/>To: winner@email.com<br/>Subject: 'Congratulations!'<br/>Body: 'Ticket #1047 won $1000'"]
+            
+            PUBLIC["Public Results<br/>{raffle_id: 'R001'<br/>winning_ticket: '1047'<br/>draw_time: '2025-05-21T15:00:00Z'<br/>prize: '$1000'}"]
+        end
+        
+        BD -.-> STRIPE
+        WD -.-> EMAIL
+        RS3 -.-> PUBLIC
+    end
+    
+    %% Styling
+    classDef purchase fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
+    classDef gli fill:#ffebee,stroke:#d32f2f,stroke-width:2px
+    classDef audit fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+    classDef external fill:#e8f5e8,stroke:#388e3c,stroke-width:2px
+    classDef state fill:#fff3e0,stroke:#f57c00,stroke-width:2px
+    
+    class PD,BD purchase
+    class GD,GD2,RNG,WD gli
+    class AD audit
+    class STRIPE,EMAIL,PUBLIC external
+    class RS,RS2,RS3 state

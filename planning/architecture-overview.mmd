@@ -1,0 +1,187 @@
+flowchart TD
+    %% Client Applications Layer
+    subgraph "CLIENT APPLICATIONS LAYER (Continuous Updates)"
+        direction TB
+        ADMIN["📱 Admin Portal<br/>(React SPA)<br/>CloudFront + S3"]
+        POS["📱 POS Mobile App<br/>(Android)<br/>8hr Offline Capability"]
+        PUBLIC["🌐 Public Website<br/>(Next.js)<br/>Marketing Only - No Logic"]
+        SALES["📊 Sales Dashboard<br/>(React SPA)<br/>Analytics & Reporting"]
+    end
+
+    %% Business Logic Layer
+    subgraph "BUSINESS LOGIC LAYER (Regular Updates)"
+        direction TB
+        subgraph "APIs & Services"
+            BL_API["🔌 Business Logic API<br/>(API Gateway + Lambda)<br/>Authentication & Authorization"]
+            USER_MGT["👥 User Management<br/>(AWS Cognito)<br/>Multi-factor Auth"]
+            PAYMENT["💳 Payment Processing<br/>(Lambda + Stripe)<br/>PCI Compliant"]
+            REPORTING["📈 Reporting Service<br/>(Lambda + QuickSight)<br/>Business Intelligence"]
+            NOTIFY["📧 Notification Service<br/>(SNS + SES)<br/>Winner Alerts"]
+        end
+        
+        subgraph "Business Data"
+            BIZ_DB[("💾 Business Database<br/>(Aurora PostgreSQL)<br/>db.r6g.large<br/>Users, Transactions, Settings")]
+            ANALYTICS[("📊 Analytics Store<br/>(Redshift)<br/>Historical Data & BI")]
+        end
+    end
+
+    %% Integration Interface Layer
+    subgraph "INTEGRATION INTERFACE LAYER (Controlled Updates)"
+        direction TB
+        RAFFLE_API["🔗 Raffle System Interface<br/>(API Gateway + Lambda)<br/>Stable Contract"]
+        ADAPTER["🔄 Protocol Adapter<br/>(Lambda)<br/>Data Transformation"]
+        VALIDATION["✅ Request Validation<br/>(Lambda)<br/>Input/Output Security"]
+    end
+
+    %% GLI-31 Certified Core System
+    subgraph "GLI-31 CERTIFIED CORE SYSTEM (Locked - Requires GLI Re-certification)"
+        direction TB
+        subgraph "Core GLI Functions"
+            RNG["🎲 Random Number Generator<br/>(Lambda + CloudHSM)<br/>Hardware-backed Entropy"]
+            DRAW["⚙️ Draw Engine<br/>(ECS Fargate)<br/>State Management"]
+            TICKET_CORE["🎫 Ticket Management Core<br/>(ECS Fargate)<br/>Sequential Numbering"]
+            WINNER["🏆 Winner Determination<br/>(Lambda)<br/>Mathematical Fairness"]
+        end
+        
+        subgraph "GLI Data & Audit"
+            CORE_DB[("🔐 GLI Core Database<br/>(Aurora PostgreSQL)<br/>db.r6g.large<br/>Draws, Tickets, RNG Logs")]
+            GLI_AUDIT["📝 GLI Audit Service<br/>(Lambda)<br/>Compliance Logging"]
+            GLI_LOGS[("📚 Immutable GLI Logs<br/>(S3 + Object Lock)<br/>7+ Year Retention")]
+        end
+    end
+
+    %% Security & Infrastructure
+    subgraph "SECURITY & INFRASTRUCTURE"
+        direction TB
+        subgraph "Security Services"
+            WAF["🛡️ Web Application Firewall<br/>(AWS WAF v2)<br/>DDoS & Attack Protection"]
+            HSM["🔒 Hardware Security Module<br/>(CloudHSM - Single AZ)<br/>Cost Optimized"]
+            CERTS["📜 Certificate Management<br/>(ACM + Private CA)<br/>TLS & Code Signing"]
+            IAM_CTRL["🔑 Access Control<br/>(IAM + RBAC)<br/>Break-glass Procedures"]
+        end
+        
+        subgraph "Operations"
+            BACKUP["💾 Backup System<br/>(AWS Backup)<br/>Cross-region Recovery"]
+            MONITOR["📊 Monitoring<br/>(CloudWatch + X-Ray)<br/>Intelligent Alerting"]
+            VULN["🔍 Vulnerability Management<br/>(Inspector)<br/>Continuous Scanning"]
+            IaC["🏗️ Infrastructure as Code<br/>(AWS CDK)<br/>Immutable Deployments"]
+        end
+    end
+
+    %% External Integrations
+    subgraph "EXTERNAL INTEGRATIONS"
+        STRIPE["💰 Stripe<br/>Payment Gateway"]
+        GLI_CERT["🏛️ GLI Certification<br/>Regulatory Body"]
+        USERS["👤 End Users<br/>Customers & Staff"]
+    end
+
+    %% Data Flow Connections
+    %% Client to Business Logic
+    ADMIN --> BL_API
+    POS --> BL_API
+    PUBLIC --> BL_API
+    SALES --> BL_API
+
+    %% Business Logic Internal
+    BL_API --> USER_MGT
+    BL_API --> PAYMENT
+    BL_API --> REPORTING
+    BL_API --> NOTIFY
+    BL_API --> BIZ_DB
+    REPORTING --> ANALYTICS
+    PAYMENT --> STRIPE
+
+    %% Business to Integration
+    BL_API --> RAFFLE_API
+
+    %% Integration Layer
+    RAFFLE_API --> ADAPTER
+    ADAPTER --> VALIDATION
+
+    %% Integration to GLI Core
+    VALIDATION --> RNG
+    VALIDATION --> DRAW
+    VALIDATION --> TICKET_CORE
+    VALIDATION --> WINNER
+
+    %% GLI Core Internal
+    RNG --> CORE_DB
+    DRAW --> CORE_DB
+    TICKET_CORE --> CORE_DB
+    WINNER --> CORE_DB
+
+    %% GLI Audit Trail
+    RNG --> GLI_AUDIT
+    DRAW --> GLI_AUDIT
+    TICKET_CORE --> GLI_AUDIT
+    WINNER --> GLI_AUDIT
+    GLI_AUDIT --> GLI_LOGS
+
+    %% Security Integration
+    RNG -.-> HSM
+    RAFFLE_API -.-> WAF
+    BL_API -.-> WAF
+    RAFFLE_API -.-> CERTS
+    BL_API -.-> CERTS
+
+    %% Operational Connections
+    CORE_DB --> BACKUP
+    BIZ_DB --> BACKUP
+    GLI_LOGS --> BACKUP
+
+    %% Monitoring
+    MONITOR -.-> RNG
+    MONITOR -.-> DRAW
+    MONITOR -.-> TICKET_CORE
+    MONITOR -.-> WINNER
+    MONITOR -.-> BL_API
+    MONITOR -.-> RAFFLE_API
+    MONITOR -.-> CORE_DB
+    MONITOR -.-> BIZ_DB
+
+    %% Access Control
+    IAM_CTRL -.-> CORE_DB
+    IAM_CTRL -.-> GLI_AUDIT
+    IAM_CTRL -.-> BL_API
+    IAM_CTRL -.-> RAFFLE_API
+
+    %% Vulnerability Management
+    VULN -.-> TICKET_CORE
+    VULN -.-> DRAW
+    VULN -.-> BL_API
+
+    %% External User Access
+    USERS --> ADMIN
+    USERS --> POS
+    USERS --> PUBLIC
+
+    %% GLI Certification
+    GLI_CERT -.-> RNG
+    GLI_CERT -.-> DRAW
+    GLI_CERT -.-> TICKET_CORE
+    GLI_CERT -.-> WINNER
+    GLI_CERT -.-> GLI_AUDIT
+
+    %% Analytics Data Pipeline
+    CORE_DB -.-> ANALYTICS
+    BIZ_DB -.-> ANALYTICS
+
+    %% Style Classes
+    classDef client fill:#e3f2fd,stroke:#1976d2,stroke-width:2px,color:#000
+    classDef business fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px,color:#000
+    classDef interface fill:#fff3e0,stroke:#f57c00,stroke-width:2px,color:#000
+    classDef gli fill:#ffebee,stroke:#d32f2f,stroke-width:3px,color:#000
+    classDef security fill:#f1f8e9,stroke:#689f38,stroke-width:2px,color:#000
+    classDef operations fill:#fafafa,stroke:#616161,stroke-width:2px,color:#000
+    classDef external fill:#e0f2f1,stroke:#00796b,stroke-width:2px,color:#000
+    classDef database fill:#e8eaf6,stroke:#3f51b5,stroke-width:2px,color:#000
+
+    %% Apply styles
+    class ADMIN,POS,PUBLIC,SALES client
+    class BL_API,USER_MGT,PAYMENT,REPORTING,NOTIFY business
+    class RAFFLE_API,ADAPTER,VALIDATION interface
+    class RNG,DRAW,TICKET_CORE,WINNER,GLI_AUDIT gli
+    class WAF,HSM,CERTS,IAM_CTRL security
+    class BACKUP,MONITOR,VULN,IaC operations
+    class STRIPE,GLI_CERT,USERS external
+    class CORE_DB,BIZ_DB,ANALYTICS,GLI_LOGS database
