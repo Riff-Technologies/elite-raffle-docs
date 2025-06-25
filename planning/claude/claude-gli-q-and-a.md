@@ -1,8 +1,5 @@
 These are the questions and answers from a session with GLI regarding software architecture and software decisions.
 
-Question: Are there any technologies or solutions we should consider that are not currently part of the GLI-31 standard?
-Answer: Some gaming regulations might require blockchain for critical memory management in the future, but nothing is certain currently.
-
 Question: What is the timeframe for certification from GLI?
 Answer: RNG certification may take 5-6 weeks, and electronic raffle system certification may take 4 weeks. Time can be reduced by proactively providing system documentation, such as implementation of firewall or networking diagrams.
 
@@ -45,7 +42,7 @@ Question: How do we handle reconciliation before initiating a draw?
 Answer: Before a draw can be inititiated, the UI interface should prompt the user to confirm that everything has been reconciled. When the user confirms, a critical event should be logged for that user, raffle, and timestamp.  This will be tested by GLI.
 
 Question: What kind of data needs to be stored related to payments?
-Answer: GLI only requires that a payment reference be stored related to the order that was created for the tickets, e.g. a transaction ID, a Stripe payment ID, etc. Other payment details can be stored if you wish, but they are not required by GLI.
+Answer: GLI only requires that the price for the order and a payment reference be stored related to the order that was created for the tickets, e.g. a transaction ID, a Stripe payment ID, etc. Other payment details can be stored if you wish, but they are not required by GLI.
 
 Question: The Android Package is a certified part of the raffle system. How can it self-verify?
 Answer: The Android Package should be a lightweight interface between the Android app and the backend system. It should have minimal logic in it. When the Android APK is built, a checksum can be generated. This checksum should remain constant after certification, and it should be viewable in the Android app. It will not be possible for the package to self-verify. If you need to ship updates to the Android app, you can do so with an over-the-air update that does not affect the APK.
