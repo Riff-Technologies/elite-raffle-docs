@@ -1,0 +1,118 @@
+flowchart TB
+   %% ───────────────────────────────
+   %% Frontend Applications
+   %% ───────────────────────────────
+   subgraph Frontend["Frontend Applications"]
+       PUBLIC["Public Website<br>(Next.js/Amplify)"]
+       ADMIN["Admin Portal<br>(Next.js/Amplify)"]
+       subgraph RSU["RSU Mobile App"]
+           EXPO["Expo UI Layer"]
+           PACKAGE["Android Package<br>✅ GLI Certified<br>• Ticket Generation<br>• Offline Queue<br>• Self-Verification"]
+       end
+   end
+
+   %% ───────────────────────────────
+   %% API & Security Layer
+   %% ───────────────────────────────
+   subgraph API["API & Security Layer"]
+       APIGW["API Gateway<br>(Regional/Public)<br>+ WAF Protection"]
+       COGNITO["AWS Cognito<br>• Admin Users<br>• RSU Operators"]
+       VPN["VPN Gateway<br>(Site-to-Site)"]
+   end
+
+   %% ───────────────────────────────
+   %% Core Services
+   %% ───────────────────────────────
+   subgraph Services["Core Services (Lambda Functions in Go)"]
+       RAFFLE["Raffle Core Service<br>✅ Critical Files #4,5<br>• Ticket Management<br>• Draw Processing<br>• Device Registry"]
+       RNG["RNG Service<br>✅ Critical File #1<br>• Crypto Secure<br>• Draw Selection"]
+       REPORT["Reporting Service<br>• GLI-31 Reports<br>• Analytics"]
+       PAYMENT["Payment Service<br>• Order Processing<br>• Payment Status<br>• Reconciliation"]
+   end
+
+   %% ───────────────────────────────
+   %% External Services
+   %% ───────────────────────────────
+   subgraph External["External Services"]
+       PROCESSOR["Payment Processor<br>(Stripe/Square/etc)<br>• Card Processing<br>• Webhooks"]
+   end
+
+   %% ───────────────────────────────
+   %% Data Storage
+   %% ───────────────────────────────
+   subgraph Data["Data Layer"]
+       AURORA[("Aurora PostgreSQL<br>Multi-AZ<br>✅ Critical File #3<br>• Raffle State<br>• Transactions")]
+       DYNAMO[("DynamoDB<br>• Event Logs<br>• High-velocity Writes<br>• TTL Enabled")]
+       PARAM["Parameter Store<br>• Checksums<br>• Configuration"]
+       S3[("S3 Archive<br>• Long-term Storage<br>• Glacier Lifecycle")]
+   end
+
+   %% ───────────────────────────────
+   %% Compliance & Monitoring
+   %% ───────────────────────────────
+   subgraph Monitoring["Compliance & Monitoring"]
+       VERIFY["Verification Lambda<br>✅ Critical File #2<br>• Hourly Execution<br>• Checksum Aggregation"]
+       METRICS["CloudWatch Metrics<br>• Self-Check Results<br>• System Health"]
+       ALARMS["CloudWatch Alarms<br>• Failure Detection<br>• SNS Alerts"]
+       CONFIG["AWS Config<br>• Compliance Rules<br>• Resource Tracking"]
+       S3WEB["Public Verification Site<br>(S3 + CloudFront)<br>• System Checksums<br>• Compliance Status"]
+   end
+
+   %% ───────────────────────────────
+   %% Connections - User Flows
+   %% ───────────────────────────────
+   PUBLIC -->|Public Data| APIGW
+   ADMIN -->|Auth + JWT| COGNITO
+   EXPO -->|Auth + JWT| COGNITO
+   COGNITO -->|Validate| APIGW
+   EXPO <-->|Local IPC| PACKAGE
+   PACKAGE -->|Device Auth| VPN
+   VPN -->|Secure Channel| APIGW
+
+   %% ───────────────────────────────
+   %% Connections - Service Flows
+   %% ───────────────────────────────
+   APIGW -->|Route| RAFFLE
+   APIGW -->|Route| REPORT
+   APIGW -->|Route| PAYMENT
+   RAFFLE -->|Generate Numbers| RNG
+   PAYMENT <-->|Process Cards| PROCESSOR
+   PAYMENT -->|Confirm Payment| RAFFLE
+
+   %% ───────────────────────────────
+   %% Connections - Data Flows
+   %% ───────────────────────────────
+   RAFFLE -->|Read/Write| AURORA
+   RAFFLE -->|Write Events| DYNAMO
+   RAFFLE -->|Read Config| PARAM
+   REPORT -->|Read Only| AURORA
+   RNG -->|Read Config| PARAM
+   PAYMENT -->|Payment Records| AURORA
+
+   %% ───────────────────────────────
+   %% Connections - Monitoring Flows
+   %% ───────────────────────────────
+   RNG -.->|Self-Check| METRICS
+   RAFFLE -.->|Self-Check| METRICS
+   PACKAGE -.->|Self-Check| METRICS
+   DYNAMO -->|Stream| S3
+   METRICS -->|Trigger| ALARMS
+   METRICS -->|Aggregate| VERIFY
+   VERIFY -->|Publish| S3WEB
+   CONFIG -.->|Monitor| Services
+   PROCESSOR -.->|Webhooks| APIGW
+
+   %% ───────────────────────────────
+   %% Styling
+   %% ───────────────────────────────
+   classDef critical fill:#ffcccc,stroke:#ff0000,stroke-width:3px
+   classDef storage fill:#ccccff,stroke:#0000ff,stroke-width:2px
+   classDef network fill:#ffffcc,stroke:#ff9900,stroke-width:2px
+   classDef monitor fill:#ccffcc,stroke:#00aa00,stroke-width:2px
+   classDef external fill:#ffccff,stroke:#ff00ff,stroke-width:2px
+
+   class RNG,RAFFLE,PACKAGE,VERIFY,AURORA critical
+   class DYNAMO,S3,PARAM storage
+   class APIGW,VPN,COGNITO network
+   class METRICS,ALARMS,CONFIG,S3WEB monitor
+   class PROCESSOR external
