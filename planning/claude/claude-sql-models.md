@@ -2,6 +2,175 @@
 
 ## Core Tables
 
+### user_reference
+
+```sql
+id UUID PRIMARY KEY  -- matches Cognito sub
+email VARCHAR(255)  -- for display purposes only
+display_name VARCHAR(255)
+last_sync_at TIMESTAMPTZ DEFAULT NOW()
+```
+
+### raffle_event
+
+```sql
+id UUID PRIMARY KEY
+organization_id UUID NOT NULL REFERENCES organization(id)
+venue_id UUID NOT NULL REFERENCES venue(id)
+name VARCHAR(255) NOT NULL
+description TEXT
+event_identifier VARCHAR(100) UNIQUE
+state VARCHAR(50) NOT NULL DEFAULT 'created'
+sales_start_time TIMESTAMPTZ
+sales_end_time TIMESTAMPTZ
+draw_time TIMESTAMPTZ
+jackpot_seed_cents BIGINT DEFAULT 0
+revenue_calculation_method VARCHAR(50) NOT NULL DEFAULT 'gross_revenue'
+max_tickets INTEGER
+reconciliation_confirmed_at TIMESTAMPTZ
+reconciliation_confirmed_by UUID REFERENCES user_reference(id)
+created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+created_by UUID REFERENCES user_reference(id)
+updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+updated_by UUID REFERENCES user_reference(id)
+```
+
+### ticket_package
+
+```sql
+id UUID PRIMARY KEY
+organization_id UUID NOT NULL REFERENCES organization(id)
+name VARCHAR(255) NOT NULL
+description TEXT
+ticket_count INTEGER NOT NULL CHECK (ticket_count > 0)
+price_cents BIGINT NOT NULL CHECK (price_cents >= 0)
+is_active BOOLEAN NOT NULL DEFAULT true
+display_order INTEGER NOT NULL DEFAULT 0
+created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+created_by UUID REFERENCES user_reference(id)
+```
+
+### raffle_ticket_package
+
+```sql
+id UUID PRIMARY KEY
+raffle_event_id UUID NOT NULL REFERENCES raffle_event(id)
+ticket_package_id UUID NOT NULL REFERENCES ticket_package(id)
+is_active BOOLEAN NOT NULL DEFAULT true
+display_order INTEGER NOT NULL DEFAULT 0
+UNIQUE(raffle_event_id, ticket_package_id)
+```
+
+### prize
+
+```sql
+id UUID PRIMARY KEY
+raffle_event_id UUID NOT NULL REFERENCES raffle_event(id)
+name VARCHAR(255) NOT NULL
+description TEXT
+prize_type VARCHAR(50) NOT NULL  -- fixed, percentage
+value_cents BIGINT  -- for fixed prizes
+percentage DECIMAL(5,2)  -- for percentage prizes
+position INTEGER NOT NULL
+winner_count INTEGER NOT NULL DEFAULT 1
+```
+
+### rsu
+
+```sql
+id UUID PRIMARY KEY
+organization_id UUID NOT NULL REFERENCES organization(id)
+device_identifier VARCHAR(255) UNIQUE NOT NULL
+name VARCHAR(100) NOT NULL
+state VARCHAR(50) NOT NULL DEFAULT 'registered'
+max_offline_tickets INTEGER NOT NULL DEFAULT 100
+last_sync_at TIMESTAMPTZ
+is_active BOOLEAN NOT NULL DEFAULT true
+created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+created_by UUID REFERENCES user_reference(id)
+```
+
+### rsu_allocation
+
+```sql
+id UUID PRIMARY KEY
+raffle_event_id UUID NOT NULL REFERENCES raffle_event(id)
+rsu_id UUID NOT NULL REFERENCES rsu(id)
+start_number INTEGER NOT NULL
+end_number INTEGER NOT NULL
+tickets_sold INTEGER NOT NULL DEFAULT 0
+tickets_voided INTEGER NOT NULL DEFAULT 0
+allocated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+UNIQUE(raffle_event_id, start_number, end_number)
+```
+
+### customer
+
+```sql
+id UUID PRIMARY KEY
+name VARCHAR(255) NOT NULL
+email VARCHAR(255)
+phone VARCHAR(50)
+created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+```
+
+### order
+
+```sql
+id UUID PRIMARY KEY
+raffle_event_id UUID NOT NULL REFERENCES raffle_event(id)
+customer_id UUID REFERENCES customer(id)
+ticket_package_id UUID NOT NULL REFERENCES ticket_package(id)
+ticket_count INTEGER NOT NULL
+total_amount_cents BIGINT NOT NULL
+payment_status VARCHAR(50) NOT NULL DEFAULT 'pending'
+payment_reference VARCHAR(255)
+source VARCHAR(50) NOT NULL  -- online, rsu
+rsu_id UUID REFERENCES rsu(id)
+created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+created_by UUID REFERENCES user_reference(id)
+```
+
+### ticket
+
+```sql
+id UUID PRIMARY KEY
+raffle_event_id UUID NOT NULL REFERENCES raffle_event(id)
+order_id UUID NOT NULL REFERENCES order(id)
+draw_number INTEGER NOT NULL
+validation_number VARCHAR(100) UNIQUE NOT NULL
+state VARCHAR(50) NOT NULL DEFAULT 'sold'
+sold_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+voided_at TIMESTAMPTZ
+voided_reason TEXT
+UNIQUE(raffle_event_id, draw_number)
+```
+
+### draw
+
+```sql
+id UUID PRIMARY KEY
+raffle_event_id UUID NOT NULL REFERENCES raffle_event(id) UNIQUE
+state VARCHAR(50) NOT NULL DEFAULT 'pending'
+draw_time TIMESTAMPTZ
+rng_seed VARCHAR(255)
+verification_checksum VARCHAR(255)
+conducted_by UUID REFERENCES user_reference(id)
+created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+```
+
+### draw_result
+
+```sql
+id UUID PRIMARY KEY
+draw_id UUID NOT NULL REFERENCES draw(id)
+prize_id UUID NOT NULL REFERENCES prize(id)
+winning_ticket_id UUID NOT NULL REFERENCES ticket(id)
+prize_value_cents BIGINT NOT NULL
+claim_status VARCHAR(50) NOT NULL DEFAULT 'unclaimed'
+claimed_at TIMESTAMPTZ
+```
+
 ### address
 ```sql
 id UUID PRIMARY KEY
