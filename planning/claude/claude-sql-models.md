@@ -384,18 +384,6 @@ updated_by UUID
 UNIQUE(entity_type, entity_id, attribute_name)
 ```
 
-## Table Creation Order
-1. address
-2. contact
-3. license
-4. jurisdiction_regulation
-5. jurisdiction
-6. venue
-7. organization_setting
-8. organization
-9. organization_venue
-10. entity_attribute
-
 ## Entity Relationships
 
 ```
@@ -418,6 +406,30 @@ organization (1) ←→ (1) venue [primary_venue_id]
 organization (*) ←→ (*) venue [via organization_venue]
 
 entity_attribute (*) ←→ (1) [any entity via entity_type + entity_id]
+
+Ticket State Transitions
+
+available → Created when raffle configured
+allocated → Assigned to an RSU for sale
+sold → Purchased by customer (linked to order)
+voided → Refunded/cancelled
+winner → Selected in draw
+claimed → Prize collected
+
+Order-Ticket Relationship
+
+One order has one validation number
+One order can contain multiple tickets
+All tickets in an order share the same validation number
+Validation lookup returns all tickets in the order
+
+RSU Allocation Flow
+
+RSU enrolled in raffle
+Number range allocated (e.g., 1001-1100)
+Tickets in range updated to 'allocated' state
+RSU can only sell from allocated range
+Online sales use 'available' (non-allocated) tickets
 ```
 
 ## Key Indexes
@@ -468,3 +480,21 @@ VALUES ('venue', 'venue-uuid', 'parking_spaces', '100', 'number');
 INSERT INTO entity_attribute (entity_type, entity_id, attribute_name, attribute_value, data_type)
 VALUES ('organization', 'org-uuid', 'bank_account', '{"bank": "Wells Fargo", "masked": "****1234"}', 'json');
 ```
+
+### Data Integrity Rules
+
+- Ticket Generation: All tickets created when raffle state changes to 'configured'
+- Unique Draw Numbers: Database enforces one ticket per draw number per raffle
+- Allocation Boundaries: RSUs can only sell tickets within their allocated range
+- Validation Uniqueness: Each order has a globally unique validation number
+- State Consistency: Ticket state changes follow defined transitions
+- Reconciliation: Cannot draw until raffle is reconciled (confirmed by admin)
+
+### Extensions for Future Phases
+The schema supports future additions without breaking changes:
+
+- Perks/Benefits: Add via entity_attribute or dedicated tables
+- Scheduled Pricing: Add time-based pricing to ticket_package
+- Customer Loyalty: Add customer preference tracking
+- Multi-draw: Extend draw/draw_result for multiple drawings
+- Reporting: Add materialized views for performance
