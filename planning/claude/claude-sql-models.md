@@ -1,5 +1,12 @@
 # Electronic Raffle System - Database Schema
 
+Flow:
+1. Raffle Created → Define max_tickets
+2. Raffle Configured → Generate all ticket records (state: 'available')
+3. RSU Allocation → Update tickets to 'allocated' state
+4. Sale → Create order with validation number, update tickets to 'sold'
+5. Draw → Select winners from sold tickets
+
 ## Core Tables
 
 ### user_reference
@@ -20,13 +27,13 @@ venue_id UUID NOT NULL REFERENCES venue(id)
 name VARCHAR(255) NOT NULL
 description TEXT
 event_identifier VARCHAR(100) UNIQUE
-state VARCHAR(50) NOT NULL DEFAULT 'created'
+state VARCHAR(50) NOT NULL DEFAULT 'created'  -- created, configured, active, sales_closed, reconciling, reconciled, drawing_ready, completed, cancelled
 sales_start_time TIMESTAMPTZ
 sales_end_time TIMESTAMPTZ
 draw_time TIMESTAMPTZ
 jackpot_seed_cents BIGINT DEFAULT 0
 revenue_calculation_method VARCHAR(50) NOT NULL DEFAULT 'gross_revenue'
-max_tickets INTEGER
+max_tickets INTEGER  -- defines total tickets to generate
 reconciliation_confirmed_at TIMESTAMPTZ
 reconciliation_confirmed_by UUID REFERENCES user_reference(id)
 created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -48,6 +55,8 @@ is_active BOOLEAN NOT NULL DEFAULT true
 display_order INTEGER NOT NULL DEFAULT 0
 created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 created_by UUID REFERENCES user_reference(id)
+updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+updated_by UUID REFERENCES user_reference(id)
 ```
 
 ### raffle_ticket_package
@@ -58,6 +67,8 @@ raffle_event_id UUID NOT NULL REFERENCES raffle_event(id)
 ticket_package_id UUID NOT NULL REFERENCES ticket_package(id)
 is_active BOOLEAN NOT NULL DEFAULT true
 display_order INTEGER NOT NULL DEFAULT 0
+created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+created_by UUID REFERENCES user_reference(id)
 UNIQUE(raffle_event_id, ticket_package_id)
 ```
 
@@ -70,9 +81,13 @@ name VARCHAR(255) NOT NULL
 description TEXT
 prize_type VARCHAR(50) NOT NULL  -- fixed, percentage
 value_cents BIGINT  -- for fixed prizes
-percentage DECIMAL(5,2)  -- for percentage prizes
+percentage DECIMAL(5,2)  -- for percentage prizes (e.g., 50.00 for 50%)
 position INTEGER NOT NULL
 winner_count INTEGER NOT NULL DEFAULT 1
+created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+created_by UUID REFERENCES user_reference(id)
+updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+updated_by UUID REFERENCES user_reference(id)
 ```
 
 ### rsu
@@ -80,14 +95,16 @@ winner_count INTEGER NOT NULL DEFAULT 1
 ```sql
 id UUID PRIMARY KEY
 organization_id UUID NOT NULL REFERENCES organization(id)
-device_identifier VARCHAR(255) UNIQUE NOT NULL
+device_identifier VARCHAR(255) UNIQUE NOT NULL  -- MAC address or unique ID
 name VARCHAR(100) NOT NULL
-state VARCHAR(50) NOT NULL DEFAULT 'registered'
+state VARCHAR(50) NOT NULL DEFAULT 'registered'  -- registered, enrolled, active, closing, closed, reconciled, suspended, error
 max_offline_tickets INTEGER NOT NULL DEFAULT 100
 last_sync_at TIMESTAMPTZ
 is_active BOOLEAN NOT NULL DEFAULT true
 created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 created_by UUID REFERENCES user_reference(id)
+updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+updated_by UUID REFERENCES user_reference(id)
 ```
 
 ### rsu_allocation
@@ -98,10 +115,16 @@ raffle_event_id UUID NOT NULL REFERENCES raffle_event(id)
 rsu_id UUID NOT NULL REFERENCES rsu(id)
 start_number INTEGER NOT NULL
 end_number INTEGER NOT NULL
-tickets_sold INTEGER NOT NULL DEFAULT 0
-tickets_voided INTEGER NOT NULL DEFAULT 0
+tickets_sold INTEGER NOT NULL DEFAULT 0  -- counter for tracking
+tickets_voided INTEGER NOT NULL DEFAULT 0  -- counter for tracking
 allocated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+allocated_by UUID REFERENCES user_reference(id)
+deallocated_at TIMESTAMPTZ
+deallocated_by UUID REFERENCES user_reference(id)
+is_active BOOLEAN NOT NULL DEFAULT true
 UNIQUE(raffle_event_id, start_number, end_number)
+CONSTRAINT check_number_range CHECK (end_number >= start_number)
+CONSTRAINT check_allocation_counts CHECK (tickets_sold + tickets_voided <= (end_number - start_number + 1))
 ```
 
 ### customer
@@ -112,6 +135,7 @@ name VARCHAR(255) NOT NULL
 email VARCHAR(255)
 phone VARCHAR(50)
 created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 ```
 
 ### order
@@ -123,12 +147,15 @@ customer_id UUID REFERENCES customer(id)
 ticket_package_id UUID NOT NULL REFERENCES ticket_package(id)
 ticket_count INTEGER NOT NULL
 total_amount_cents BIGINT NOT NULL
-payment_status VARCHAR(50) NOT NULL DEFAULT 'pending'
-payment_reference VARCHAR(255)
+validation_number VARCHAR(100) UNIQUE NOT NULL  -- One per order, not per ticket
+payment_status VARCHAR(50) NOT NULL DEFAULT 'pending'  -- pending, completed, failed, refunded
+payment_reference VARCHAR(255)  -- Stripe payment ID, etc.
 source VARCHAR(50) NOT NULL  -- online, rsu
-rsu_id UUID REFERENCES rsu(id)
+rsu_id UUID REFERENCES rsu(id)  -- if sold via RSU
 created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 created_by UUID REFERENCES user_reference(id)
+updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+updated_by UUID REFERENCES user_reference(id)
 ```
 
 ### ticket
@@ -136,13 +163,27 @@ created_by UUID REFERENCES user_reference(id)
 ```sql
 id UUID PRIMARY KEY
 raffle_event_id UUID NOT NULL REFERENCES raffle_event(id)
-order_id UUID NOT NULL REFERENCES order(id)
 draw_number INTEGER NOT NULL
-validation_number VARCHAR(100) UNIQUE NOT NULL
-state VARCHAR(50) NOT NULL DEFAULT 'sold'
-sold_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+state VARCHAR(50) NOT NULL DEFAULT 'available'  -- available, allocated, sold, voided, winner, claimed
+
+-- Allocation fields
+allocated_to_rsu_id UUID REFERENCES rsu(id)
+allocated_at TIMESTAMPTZ
+allocation_id UUID REFERENCES rsu_allocation(id)
+
+-- Sale fields (NULL until sold)
+order_id UUID REFERENCES order(id)
+sold_at TIMESTAMPTZ
+sold_by UUID REFERENCES user_reference(id)
+
+-- Void fields
 voided_at TIMESTAMPTZ
+voided_by UUID REFERENCES user_reference(id)
 voided_reason TEXT
+
+created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+
 UNIQUE(raffle_event_id, draw_number)
 ```
 
@@ -151,12 +192,15 @@ UNIQUE(raffle_event_id, draw_number)
 ```sql
 id UUID PRIMARY KEY
 raffle_event_id UUID NOT NULL REFERENCES raffle_event(id) UNIQUE
-state VARCHAR(50) NOT NULL DEFAULT 'pending'
+state VARCHAR(50) NOT NULL DEFAULT 'pending'  -- pending, generating, completed
 draw_time TIMESTAMPTZ
-rng_seed VARCHAR(255)
+rng_seed VARCHAR(255)  -- for audit trail
 verification_checksum VARCHAR(255)
 conducted_by UUID REFERENCES user_reference(id)
 created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+created_by UUID REFERENCES user_reference(id)
+updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+updated_by UUID REFERENCES user_reference(id)
 ```
 
 ### draw_result
@@ -166,9 +210,12 @@ id UUID PRIMARY KEY
 draw_id UUID NOT NULL REFERENCES draw(id)
 prize_id UUID NOT NULL REFERENCES prize(id)
 winning_ticket_id UUID NOT NULL REFERENCES ticket(id)
-prize_value_cents BIGINT NOT NULL
-claim_status VARCHAR(50) NOT NULL DEFAULT 'unclaimed'
+prize_value_cents BIGINT NOT NULL  -- actual value at time of draw
+claim_status VARCHAR(50) NOT NULL DEFAULT 'unclaimed'  -- unclaimed, claimed
 claimed_at TIMESTAMPTZ
+claimed_by UUID REFERENCES user_reference(id)
+created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 ```
 
 ### address
