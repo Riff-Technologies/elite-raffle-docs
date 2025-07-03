@@ -64,7 +64,7 @@ All critical services are implemented as Lambda functions using Go runtime for:
 
 **Critical Event Storage**: DynamoDB
 - Stores all critical events and audit logs generated from Raffle Core Service
-- Configurable TTL for jurisdictional requirements (default 3 years)
+- TTL of 2 weeks before it's moved to archive storage
 - DynamoDB Streams trigger archival process
 - Global Tables for multi-region availability (future requirement)
 

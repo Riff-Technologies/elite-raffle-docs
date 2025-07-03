@@ -14,5 +14,5 @@ This document tracks what we've completed so far, but does not track what remain
 
 ### Database
 
-- First pass at database tables for the raffle core system created locally, but not deployed.
+- First pass at SQL database tables for the raffle core system created locally, but not deployed.
   - Scripts created for table creation.

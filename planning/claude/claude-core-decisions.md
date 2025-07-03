@@ -27,3 +27,12 @@
 7. **Raffle State**
 - Raffle event state should remain in `created` status until it is `activated`, and an `isConfigured` property should be calculated upon getting raffle details.
 - Raffle events need to automatically start at the start date that was configured, or by manually starting the event.
+8. **Infrastructure as code**
+- Infrastructure will be created with Terraform and Terragrunt.
+- The IaC code will live in separate repos and will not be part of the service projects.
+9. **Lambda Services**
+- AWS Lambda functions will be used for the application services.
+- A project repo will be created for each service, which contain all the functions that can be compiled and deployed.
+- The project should contain one or more Go files that can be compiled and uploaded to S3.
+- The compilation and upload will be part of the deployment pipeline, and will not be part of the service project.
+- Env vars will be injected by the deployment pipeline or in Terraform.
