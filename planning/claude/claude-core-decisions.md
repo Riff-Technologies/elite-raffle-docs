@@ -36,3 +36,4 @@
 - The project should contain one or more Go files that can be compiled and uploaded to S3.
 - The compilation and upload will be part of the deployment pipeline, and will not be part of the service project.
 - Env vars will be injected by the deployment pipeline or in Terraform.
+- The naming of Go modules should follow the convention `github.com/Riff-Technologies/{module_name}`
