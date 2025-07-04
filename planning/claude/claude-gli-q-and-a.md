@@ -46,3 +46,12 @@ Answer: GLI only requires that the price for the order and a payment reference b
 
 Question: The Android Package is a certified part of the raffle system. How can it self-verify?
 Answer: The Android Package should be a lightweight interface between the Android app and the backend system. It should have minimal logic in it. When the Android APK is built, a checksum can be generated. This checksum should remain constant after certification, and it should be viewable in the Android app. It will not be possible for the package to self-verify. If you need to ship updates to the Android app, you can do so with an over-the-air update that does not affect the APK.
+
+Question: How do we handle security vulnerabilities in our critical files’ dependencies?e.g. a dependency used in our Go function requires a security update - the checksum will change if we upgrade it.Will it require re-certification? If so, what does that process look like?
+Answer: Essentially, yes that will be a factor. The goal is to try and use as little dependencies as possible in the critical code in order to avoid this, but sometimes its unavoidable. In cases like this, re-certification is only a gap-test and much more limited scope than the first time approval that we are doing now. Happy to go into detail on a call about the modification process.
+
+Question: Can we compile our binary for 2 different runtimes? e.g. ARM64 and x86? How would certification work for that?It would be the same code, but would it require testing it on both architectures?
+Answer: Yes we can do this, we can just list both versions of the hashes on the same certification letters. We wouldn't necessary need to do a full testing suite on both architectures, more like a full-runthrough on one and a gap on the other.
+
+Question: For the purpose of certification, do you care about the infrastructure the code runs on?For example, AWS will occasionally upgrade the underlying OS that Lambda depends on, but this won’t affect our code directly.Are there any concerns around this?
+Answer: No, not really at all. We should be in the clear here.
