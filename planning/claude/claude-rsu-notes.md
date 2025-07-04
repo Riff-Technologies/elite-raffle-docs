@@ -34,6 +34,7 @@
 - RSU must be capable of displaying that all sales have been uploaded
 - After upload confirmation, RSU can be reset/closed for current raffle
 - No further sales allowed for current raffle after closing
+- The admin dashboard must have a way to view the status of the RSU reconciliation state
 
 ### Additional Features
 - RSU app should support push notifications for various features, including messaging between operators during an event
