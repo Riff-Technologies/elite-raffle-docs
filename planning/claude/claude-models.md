@@ -64,7 +64,7 @@ These models are proposals and do not necessarily represent the definitive and f
   "name": "Grand Prize",
   "description": "iPad Pro + Apple Watch",
   "type": "fixed", // fixed or percentage
-  "value": 1500.0, // null for percentage prizes
+  "value": 150000, // null for percentage prizes
   "percentage": null, // null for fixed prizes
   "currency": "USD",
   "position": 1,
@@ -84,14 +84,14 @@ These models are proposals and do not necessarily represent the definitive and f
   "name": "Value Pack",
   "description": "5 tickets - Best value!",
   "ticketCount": 5,
-  "price": 20.0,
+  "price": 2000,
   "currency": "USD",
   "isActive": true,
   "displayOrder": 2,
   "activeFrom": "2025-06-28T09:00:00Z",
   "activeTo": "2025-06-28T15:00:00Z",
   "perkIds": ["perk-123e4567-e89b-12d3-a456-426614174001"],
-  "organizationId": "org-123e4567-e89b-12d3-a456-426614174000", // Maybe we don't need this association?
+  "organizationId": "org-123e4567-e89b-12d3-a456-426614174000",
   "createdAt": "2025-06-27T14:05:00Z",
   "createdBy": "admin-user-id",
   "updatedAt": "2025-06-28T10:30:00Z",
@@ -239,7 +239,7 @@ These models are proposals and do not necessarily represent the definitive and f
   "name": "Maximum Prize Value",
   "type": "prize_limit", // "ticket_price_limit", "event_duration", "sales_method", "reporting_requirement", "data_retention"
   "value": {
-    "amount": 50000.00,
+    "amount": 5000000,
     "currency": "USD"
   },
   "effectiveDate": "2025-01-01T00:00:00Z",
@@ -332,7 +332,7 @@ Note: if both `organizationId` and `venueId` are null, the device is an "admin" 
   "validationNumber": "VAL-9F8E7D6C5B4A",
   "eventId": "123e4567-e89b-12d3-a456-426614174000",
   "packageId": "pkg-123e4567-e89b-12d3-a456-426614174002",
-  "totalAmount": 20.0,
+  "totalAmount": 2000,
   "currency": "USD",
   "paymentStatus": "completed",
   "paymentReference": "stripe_pi_1234567890",
@@ -413,7 +413,7 @@ Note: if both `organizationId` and `venueId` are null, the device is an "admin" 
     }
   ],
   "totalTicketsSold": 1245,
-  "totalRevenue": 4980.00,
+  "totalRevenue": 498000,
   "currency": "USD",
   "startedAt": "2025-06-30T18:00:00Z",
   "completedAt": null,
@@ -450,7 +450,7 @@ Note: if both `organizationId` and `venueId` are null, the device is an "admin" 
       "prizeId": "prize-123e4567-e89b-12d3-a456-426614174002",
       "prizeName": "50/50 Split",
       "position": 2,
-      "calculatedValue": 1225.0,
+      "calculatedValue": 122500,
       "winningNumbers": [1678],
       "winners": [
         {
@@ -492,12 +492,3 @@ Note: if both `organizationId` and `venueId` are null, the device is an "admin" 
   "ttl": 1783142400
 }
 ```
-
-### Missing Models to Consider:
-
-- User/Admin Model - For authentication and authorization
-- Operator Model - RSU operators with device assignments
-- Payment Provider Model - Configuration for Stripe, etc.
-- Audit Log Model - For non-critical events and admin actions
-- Report Model - For GLI-31 required reports storage
-- Reconciliation Model - Track reconciliation process state
