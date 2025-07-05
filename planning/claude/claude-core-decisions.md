@@ -37,3 +37,11 @@
 - The compilation and upload will be part of the deployment pipeline, and will not be part of the service project.
 - Env vars will be injected by the deployment pipeline or in Terraform.
 - The naming of Go modules should follow the convention `github.com/Riff-Technologies/{module_name}`
+10. **Critical Files**
+- Critical files should be as simple as possible, and should generally be executable without any dependencies.
+  - This will enable GLI to test the functionality of the critical files, e.g. RNG, without the overhead over AWS dependencies, logging, etc.
+  - Those dependencies should be injected so that the modules can be independent of them for the purposes of certification.
+11. **SQL**
+- PostgreSQL Database will be used to store the raffle data and associated data.
+- The database should not maintain business logic nor stored procedures CRUD.
+- Business logic should be maintained in the Lambda services, and a separate Go module should be created to write data to the database, and another separate module should be created to read data from the database.
