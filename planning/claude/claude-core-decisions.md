@@ -18,10 +18,15 @@
 - Seed amount = guaranteed minimum jackpot
 - Jackpot grows when event revenue exceeds seed amount
 - Revenue calculation method should be configurable per organization/event (e.g. net revenue, gross revenue)
-5. **RSU Synchronization**
+5. **RSU**
 - RSUs cache ticket package pricing data
 - Package updates fetched during regular RSU check-ins with system
 - RSUs report specific package sold + tickets consumed (eliminates offline pricing conflicts)
+- An RSU can be associated with an organization and/or a venue
+- When our app is started, it will allow the user to select from a list of raffles related to the organization and/or venue its associated with to enable enrollment in the raffle event.
+- If the RSU has no organization nor venue association, it can be considered an "admin" RSU and will fetch a list of all raffle events.
+- An RSU can manage a "PIN" for a user, in lieu of the full password, to make logging in quick during an event.
+  - The full password will be required initially, and then the user can set a PIN for the event to quickly access the event.
 6. **Sales Tracking**
 - Pricing changes must be tracked for reconciliation/refunds
 7. **Raffle State**
@@ -45,3 +50,6 @@
 - PostgreSQL Database will be used to store the raffle data and associated data.
 - The database should not maintain business logic nor stored procedures CRUD.
 - Business logic should be maintained in the Lambda services, and a separate Go module should be created to write data to the database, and another separate module should be created to read data from the database.
+12. **Users**
+- Users will be created in AWS Cognito.
+- Users will also have a record in the raffle database, where the user data can be maintained, such as name and permissions.
