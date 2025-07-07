@@ -27,6 +27,7 @@
 - If the RSU has no organization nor venue association, it can be considered an "admin" RSU and will fetch a list of all raffle events.
 - An RSU can manage a "PIN" for a user, in lieu of the full password, to make logging in quick during an event.
   - The full password will be required initially, and then the user can set a PIN for the event to quickly access the event.
+- RSUs will be deployed by the payment facilitator.
 6. **Sales Tracking**
 - Pricing changes must be tracked for reconciliation/refunds
 7. **Raffle State**
@@ -41,7 +42,8 @@
 - The project should contain one or more Go files that can be compiled and uploaded to S3.
 - The compilation and upload will be part of the deployment pipeline, and will not be part of the service project.
 - Env vars will be injected by the deployment pipeline or in Terraform.
-- The naming of Go modules should follow the convention `github.com/Riff-Technologies/{module_name}`
+- The naming of Go modules should follow the convention `github.com/riff-technologies/{module_name}`
+- Lambda functions should be single-responsibility, and have a 1:1 relationship with API Gateway endpoints, e.g. POST user endpoint will hit a specific Lambda function for creating a user.
 10. **Critical Files**
 - Critical files should be as simple as possible, and should generally be executable without any dependencies.
   - This will enable GLI to test the functionality of the critical files, e.g. RNG, without the overhead over AWS dependencies, logging, etc.
@@ -53,3 +55,8 @@
 12. **Users**
 - Users will be created in AWS Cognito.
 - Users will also have a record in the raffle database, where the user data can be maintained, such as name and permissions.
+13. **Onboarding of other clients**
+- We want the ability to license our raffle system to other clients to use our software to run their own raffles.
+- Need to be able to quickly onboard other clients to use our software.
+- PaySafe (or another platform) can act as a payment facilitator which would pay the other clients directly to their bank accounts.
+- The system needs to be architected in such a way that enables this type of relationship with clients.
