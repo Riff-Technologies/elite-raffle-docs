@@ -7,12 +7,12 @@ This document tracks what we've completed so far, but does not track what remain
 - VPC created.
 - A test Lambda function created for a "hello world" response.
 - A test API Gateway created in the AWS console to test the Lambda function.
-- Github Actions pipeline being configured to deploy infrastructure and Lambdas on push to main branches. 
+- Github Actions pipeline is configured to deploy infrastructure on push to main.
 
 ### Services
 
 - RNG function created with Lambda bootstrap, but not deployed to AWS yet.
-- Raffle Core Service project bootstrapped. 
+- Data models completed.
 
 ### Database
 

@@ -2,6 +2,8 @@
 
 These models are proposals and do not necessarily represent the definitive and final models. Changes should be suggested where required.
 
+All currency values are in the lowest denomination, e.g. for USD they are in cents.
+
 ### Raffle event
 
 ```json
@@ -17,9 +19,10 @@ These models are proposals and do not necessarily represent the definitive and f
     "salesStartTime": "2025-06-28T09:00:00Z",
     "salesEndTime": "2025-06-30T18:00:00Z",
     "drawTime": "2025-06-30T19:00:00Z",
-    "jackpotSeed": 1000.0,
+    "jackpotSeedAmount": 100000, // the guaranteed minimum jackpot
+    "jackpotStartingAmount": 0, // any starting cash amount for the jackpot
     "revenueCalculationMethod": "gross_revenue",
-    "maxTickets": 2000,
+    "maxTickets": 200000,
     "ticketPackageIds": [
       "pkg-123e4567-e89b-12d3-a456-426614174001",
       "pkg-123e4567-e89b-12d3-a456-426614174002",
@@ -41,7 +44,7 @@ These models are proposals and do not necessarily represent the definitive and f
 
 ```json
 {
-  "id": "prize-123e4567-e89b-12d3-a456-426614174001",
+  "id": "prize-template-123e4567-e89b-12d3-a456-426614174001",
   "name": "Grand Prize",
   "description": "iPad Pro + Apple Watch",
   "type": "fixed", // fixed or percentage
@@ -61,17 +64,34 @@ These models are proposals and do not necessarily represent the definitive and f
 {
   "id": "prize-123e4567-e89b-12d3-a456-426614174001",
   "eventId": "123e4567-e89b-12d3-a456-426614174000",
-  "name": "Grand Prize",
-  "description": "iPad Pro + Apple Watch",
-  "type": "fixed", // fixed or percentage
-  "value": 150000, // null for percentage prizes
-  "percentage": null, // null for fixed prizes
+  "name": "Raffle Winner",
+  "description": "50/50 Raffle Winner",
+  "type": "percentage", // fixed or percentage
+  "value": null, // null for percentage prizes
+  "percentage": 40, // null for fixed prizes
   "currency": "USD",
   "position": 1,
   "winnerCount": 1,
   "createdAt": "2025-06-27T13:00:00Z",
   "createdBy": "admin-user-id",
   "updatedAt": "2025-06-27T13:00:00Z",
+  "updatedBy": "admin-user-id"
+}
+```
+
+### Ticket Package template
+
+```json
+{
+  "id": "pkg-template-123e4567-e89b-12d3-a456-426614174002",
+  "name": "Value Pack",
+  "description": "5 tickets - Best value!",
+  "ticketCount": 5,
+  "price": 2000,
+  "currency": "USD",
+  "createdAt": "2025-06-27T14:05:00Z",
+  "createdBy": "admin-user-id",
+  "updatedAt": "2025-06-28T10:30:00Z",
   "updatedBy": "admin-user-id"
 }
 ```
@@ -285,6 +305,7 @@ Note: if both `organizationId` and `venueId` are null, the device is an "admin" 
   },
   "lastSync": "2025-06-29T15:45:00Z",
   "isActive": true,
+  "currentOperatorId": "operator-123e4567-e89b-12d3-a456-426614174000",
   "createdAt": "2025-06-20T08:00:00Z",
   "createdBy": "admin-user-id",
   "updatedAt": "2025-06-29T15:45:00Z",
@@ -350,7 +371,7 @@ Note: if both `organizationId` and `venueId` are null, the device is an "admin" 
   },
   "source": "online", // "online", "rsu", "admin"
   "rsuId": null, // which RSU if source="rsu"
-  "operatorId": "operator-user-id", // who processed the sale
+  "operatorId": null, // who processed the sale if it was an RSU
   "createdAt": "2025-06-28T14:25:00Z",
   "createdBy": "operator-user-id",
   "updatedAt": "2025-06-28T14:30:00Z"
@@ -389,7 +410,6 @@ Note: if both `organizationId` and `venueId` are null, the device is an "admin" 
 {
   "id": "operator-123e4567-e89b-12d3-a456-426614174000",
   "userId": "user-123e4567-e89b-12d3-a456-426614174000",
-  "assignedRSUs": ["rsu-456f7890-b12c-34d5-e678-901234567abc"],
   "isActive": true,
   "createdAt": "2025-06-01T00:00:00Z",
   "updatedAt": "2025-06-28T00:00:00Z"
