@@ -33,6 +33,34 @@ All currency values are in the lowest denomination, e.g. for USD they are in cen
       "prize-123e4567-e89b-12d3-a456-426614174002"
     ]
   },
+  "ticketAllocation": {
+    "ranges": [
+      {
+        "type": "rsu",
+        "start": 1,
+        "end": 50000,
+        "defaultAllocationSize": 100,
+        "allocated": 2000,  // Running total
+        "available": 48000
+      },
+      {
+        "type": "online",
+        "start": 50001,
+        "end": 180000,
+        "defaultAllocationSize": 1,
+        "allocated": 15234,
+        "available": 114766
+      },
+      {
+        "type": "reserve",
+        "start": 180001,
+        "end": 200000,
+        "defaultAllocationSize": 1000,
+        "allocated": 5000,
+        "available": 15000
+      }
+    ]
+  },
   "createdAt": "2025-06-27T14:30:00Z",
   "createdBy": "admin-user-id",
   "updatedAt": "2025-06-28T09:15:00Z",
@@ -89,6 +117,7 @@ All currency values are in the lowest denomination, e.g. for USD they are in cen
   "ticketCount": 5,
   "price": 2000,
   "currency": "USD",
+  "displayOrder": 2,
   "createdAt": "2025-06-27T14:05:00Z",
   "createdBy": "admin-user-id",
   "updatedAt": "2025-06-28T10:30:00Z",
@@ -108,10 +137,10 @@ All currency values are in the lowest denomination, e.g. for USD they are in cen
   "currency": "USD",
   "isActive": true,
   "displayOrder": 2,
-  "activeFrom": "2025-06-28T09:00:00Z",
-  "activeTo": "2025-06-28T15:00:00Z",
+  "activeFrom": "2025-06-28T09:00:00Z", // null if the raffle does not have dynamic ticket pricing
+  "activeTo": "2025-06-28T15:00:00Z", // null if the raffle does not have dynamic ticket pricing
   "perkIds": ["perk-123e4567-e89b-12d3-a456-426614174001"],
-  "organizationId": "org-123e4567-e89b-12d3-a456-426614174000",
+  "eventId": "123e4567-e89b-12d3-a456-426614174000",
   "createdAt": "2025-06-27T14:05:00Z",
   "createdBy": "admin-user-id",
   "updatedAt": "2025-06-28T10:30:00Z",
@@ -130,7 +159,12 @@ All currency values are in the lowest denomination, e.g. for USD they are in cen
   "type": "benefit", // "benefit", "physical_item", "digital_item", "experience"
   "category": "parking",
   "requiresInventory": true,
-  "totalInventory": 50, // null if unlimited
+  "inventory": {
+    "total": 50,
+    "allocated": 0,
+    "claimed": 0,
+    "available": 50
+  },
   "isActive": true,
   "metadata": {
     "location": "Lot A, Spaces 1-50",
@@ -200,6 +234,7 @@ All currency values are in the lowest denomination, e.g. for USD they are in cen
   "amenities": ["parking", "wifi", "sound_system", "stage"],
   "jurisdictionId": "jur-123e4567-e89b-12d3-a456-426614174000",
   "acceptedCurrencies": ["USD"],
+  "timezone": "America/Los_Angeles",
   "isActive": true,
   "createdAt": "2025-02-01T09:00:00Z",
   "createdBy": "admin-user-id",
@@ -291,19 +326,20 @@ Note: if both `organizationId` and `venueId` are null, the device is an "admin" 
       "printSpeed": "normal"
     }
   },
-  "currentAllocation": {
-    "id": "allocation-123e4567-e89b-12d3-a456-426614174000",
-    "eventId": "123e4567-e89b-12d3-a456-426614174000",
-    "rsuId": "rsu-456f7890-b12c-34d5-e678-901234567abc",
-    "startTicketNumber": 1001,
-    "endTicketNumber": 1100,
-    "allocatedAt": "2025-06-28T08:00:00Z",
-    "allocatedBy": "admin-user-id",
-    "ticketsSold": 27,
-    "ticketsVoided": 0,
-    "isActive": true
+  "activeRanges": [
+    {
+      "rangeId": "range-123e4567-e89b-12d3-a456-426614174000",
+      "raffleEventId": "123e4567-e89b-12d3-a456-426614174000",
+      "startNumber": 1001,
+      "endNumber": 1100,
+      "ticketsRemaining": 71
+    }
+  ],
+  "validation": {
+    "lastSync": "2025-06-29T15:45:00Z", // last time the RSU checked in and synchronized data with the system
+    "lastValidation": "2025-06-29T15:45:00Z",
+    "status": "valid" // valid or invalid based on checksum validation
   },
-  "lastSync": "2025-06-29T15:45:00Z",
   "isActive": true,
   "currentOperatorId": "operator-123e4567-e89b-12d3-a456-426614174000",
   "createdAt": "2025-06-20T08:00:00Z",
@@ -317,16 +353,25 @@ Note: if both `organizationId` and `venueId` are null, the device is an "admin" 
 
 ```json
 {
-  "id": "allocation-123e4567-e89b-12d3-a456-426614174000",
-  "eventId": "123e4567-e89b-12d3-a456-426614174000",
-  "rsuId": "rsu-456f7890-b12c-34d5-e678-901234567abc",
-  "startTicketNumber": 1001,
-  "endTicketNumber": 1100,
+  "id": "range-123e4567-e89b-12d3-a456-426614174000",
+  "raffleEventId": "123e4567-e89b-12d3-a456-426614174000",
+  "rangeType": "rsu", // "rsu", "online", "reserve"
+  "entityId": "rsu-456f7890-b12c-34d5-e678-901234567abc", // RSU ID, null for online
+  "entityType": "rsu", // "rsu", "system", "partner"
+  "startNumber": 1001,
+  "endNumber": 1100,
+  "totalTickets": 100,
+  "state": "active", // "pending", "active", "exhausted", "cancelled"
+  "ticketsSold": 27,
+  "ticketsVoided": 2,
+  "ticketsAvailable": 71,
   "allocatedAt": "2025-06-28T08:00:00Z",
   "allocatedBy": "admin-user-id",
-  "ticketsSold": 27,
-  "ticketsVoided": 0,
-  "isActive": true
+  "exhaustedAt": null,
+  "metadata": {
+    "rsuName": "RSU-001",
+    "location": "Main Entrance"
+  }
 }
 ```
 
@@ -338,7 +383,7 @@ Note: if both `organizationId` and `venueId` are null, the device is an "admin" 
   "eventId": "123e4567-e89b-12d3-a456-426614174000",
   "drawNumber": 1001,
   "state": "sold", // "available", "allocated", "sold", "voided"
-  "allocationId": "allocation-123e4567-e89b-12d3-a456-426614174000", // null if not allocated
+  "rangeId": "range-123e4567-e89b-12d3-a456-426614174000", // null if not allocated
   "orderId": "order-321b4567-d89e-12f3-a456-426614174000", // null if not sold
   "createdAt": "2025-06-28T14:30:00Z",
   "updatedAt": "2025-06-28T14:30:00Z"
@@ -432,63 +477,69 @@ Note: if both `organizationId` and `venueId` are null, the device is an "admin" 
       "lastSyncAt": "2025-06-30T18:30:00Z"
     }
   ],
+  "discrepancies": [
+    {
+      "type": "ticket_count_mismatch",
+      "rsuId": "rsu-456...",
+      "expected": 100,
+      "actual": 98,
+      "resolution": "manual_adjustment",
+      "resolvedBy": "admin-user-123",
+      "resolvedAt": "2025-06-30T19:00:00Z",
+      "notes": "2 tickets voided but not synced before RSU shutdown"
+    }
+  ],
   "totalTicketsSold": 1245,
   "totalRevenue": 498000,
   "currency": "USD",
   "startedAt": "2025-06-30T18:00:00Z",
-  "completedAt": null,
-  "completedBy": null,
+  "confirmedAt": null,
+  "confirmedBy": null, // user ID
   "notes": null
 }
 ```
 
-### Draw
+### Draw execution
 
 ```json
 {
-  "id": "draw-654c7890-e12f-34a5-b678-901234567def",
-  "eventId": "123e4567-e89b-12d3-a456-426614174000",
-  "state": "completed",
-  "drawTime": "2025-06-30T19:00:00Z",
-  "results": [
-    {
-      "prizeId": "prize-123e4567-e89b-12d3-a456-426614174001",
-      "prizeName": "Grand Prize",
-      "position": 1,
-      "winningNumbers": [1245],
-      "winners": [
-        {
-          "ticketId": "ticket-winner-123",
-          "drawNumber": 1245,
-          "validationNumber": "VAL-WINNER123",
-          "customerName": "Jane Smith",
-          "claimStatus": "unclaimed"
-        }
-      ]
-    },
-    {
-      "prizeId": "prize-123e4567-e89b-12d3-a456-426614174002",
-      "prizeName": "50/50 Split",
-      "position": 2,
-      "calculatedValue": 122500,
-      "winningNumbers": [1678],
-      "winners": [
-        {
-          "ticketId": "ticket-winner-456",
-          "drawNumber": 1678,
-          "validationNumber": "VAL-WINNER456",
-          "customerName": "Bob Johnson",
-          "claimStatus": "claimed",
-          "claimedAt": "2025-06-30T20:15:00Z"
-        }
-      ]
-    }
-  ],
+  "id": "draw-exec-123...",
+  "raffleEventId": "123...",
+  "state": "in_progress", // "pending", "in_progress", "completed", "failed"
+  "startedAt": "2025-06-30T19:00:00Z",
   "rngSeed": "SEED-9876543210ABCDEF",
-  "verificationChecksum": "SHA256-ABCDEF1234567890",
   "conductedBy": "admin-user-id",
+  "systemChecksum": "SHA256-XXX...", // System state at draw time
   "createdAt": "2025-06-30T19:00:00Z",
-  "updatedAt": "2025-06-30T20:15:00Z"
+  "updatedAt": "2025-06-30T19:00:00Z"
+}
+```
+
+### Draw result
+
+```json
+{
+  "id": "draw-result-123...",
+  "drawExecutionId": "draw-exec-123...",
+  "prizeId": "prize-123...",
+  "position": 1,
+  "winningTicketId": "ticket-789...",
+  "winningNumber": 1245,
+  "prizeValueAtDraw": 122500, // Calculated for percentage prizes
+  "selectedAt": "2025-06-30T19:01:00Z"
+}
+```
+
+### Prize claim
+
+```json
+{
+  "id": "claim-123...",
+  "drawResultId": "draw-result-123...",
+  "claimedAt": "2025-06-30T20:15:00Z",
+  "claimedBy": "winner-user-id",
+  "verificationMethod": "validation_number",
+  "verifiedBy": "admin-user-id"
 }
 ```
 
@@ -510,5 +561,87 @@ Note: if both `organizationId` and `venueId` are null, the device is an "admin" 
   },
   "timestamp": "2025-06-28T09:00:00Z",
   "ttl": 1783142400
+}
+```
+
+### Verification
+
+```json
+{
+  "id": "verify-123...",
+  "targetType": "system", // "system" or "raffle", "rsu"
+  "targetId": null, // null for system-wide
+  "verificationType": "scheduled", // "scheduled" or "manual", "pre-operation"
+  "checksums": {
+    "rng": "SHA256-ABC123...",
+    "raffleCore": "SHA256-DEF456...",
+    "ticketValidation": "SHA256-GHI789..."
+  },
+  "status": "valid",
+  "performedAt": "2025-06-28T09:00:00Z",
+  "performedBy": "system", // or user ID
+  "details": "All critical files match expected checksums"
+}
+```
+
+### System configuration
+```json
+{
+  "id": "sys-config-123...",
+  "version": "1.0.0",
+  "effectiveFrom": "2025-01-01T00:00:00Z",
+  "effectiveTo": null,
+  "settings": {
+    "verification": {
+      "scheduleIntervalHours": 24,
+      "requiredBeforeDraw": true
+    },
+    "dataRetention": {
+      "criticalEventsDays": 1095, // 3 years
+      "ticketDataDays": 2555 // 7 years
+    },
+    "rsu": {
+      "defaultMaxOfflineTickets": 100,
+      "defaultSyncIntervalMinutes": 5,
+      "apiKeyRotationDays": 90
+    }
+  },
+  "createdAt": "2025-01-01T00:00:00Z",
+  "createdBy": "system"
+}
+```
+
+### Organization configuration
+
+```json
+{
+  "id": "org-config-123...",
+  "organizationId": "org-123...",
+  "version": "1.0.0",
+  "effectiveFrom": "2025-01-01T00:00:00Z",
+  "settings": {
+    "raffles": {
+      "defaultRevenueCalculation": "gross_revenue",
+      "maxConcurrentEvents": 5,
+      "reconciliationTimeoutHours": 4
+    },
+    "sales": {
+      "allowOnlineSales": true,
+      "onlinePercentageFee": 2.5,
+      "taxRate": 8.25
+    },
+    "rsu": {
+      "maxDevices": 20,
+      "offlineBufferSize": 100
+    },
+    "ticketAllocationDefaults": {
+      "rsuPercentage": 25,      // 25% of tickets for RSUs
+      "onlinePercentage": 65,   // 65% for online
+      "reservePercentage": 10,  // 10% reserve
+      "defaultRsuBlockSize": 100,
+      "minimumRsuAllocation": 50,
+      "maximumRsuAllocation": 500
+    }
+  }
 }
 ```

@@ -10,10 +10,12 @@
 - Open-ended perks system that allows ticket packages to include perks (type + description)
 - Some perks may have limited inventory that needs tracking
 - Packages configured separately from raffle creation (dedicated endpoints needed)
-3. **Inventory Management**
-- RSUs allocated sequential ticket blocks
-- Packages consume appropriate quantity from RSU’s allocated tickets
-- No pre-allocation or reservation of tickets for specific packages
+3. **Ticketing**
+- Tickets will be created before the event becomes active.
+- Ticket ranges will be allocated when the raffle is created:
+  - A range will be available for RSUs, and a separate range will be available for online orders.
+- An RSU will request a ticket range allocation, which will assign a block of tickets to the RSU.
+- The Postgres database will ensure a ticket cannot be sold or allocated more than once.
 4. **Jackpot Seeding**
 - Seed amount = guaranteed minimum jackpot
 - Jackpot grows when event revenue exceeds seed amount
@@ -55,6 +57,8 @@
 12. **Users**
 - Users will be created in AWS Cognito.
 - Users will also have a record in the raffle database, where the user data can be maintained, such as name and permissions.
+- Cognito will use custom attributes for: role (admin, operator, customer), organization membership (which organizations the user can access), MFA settings
+- The database will store user permissions (e.g. can void a ticket, can refund, etc.), organization-specific roles (admin, operator), permission history.
 13. **Onboarding of other clients**
 - We want the ability to license our raffle system to other clients to use our software to run their own raffles.
 - Need to be able to quickly onboard other clients to use our software.
