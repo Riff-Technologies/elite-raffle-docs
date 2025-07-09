@@ -1,0 +1,5 @@
+- Reprint tickets functionality and logging
+- End of event printed close-out report
+- Repeat last sale feature
+- Barrel printing - need to consider how to implement this and what data models are required
+- Ticket records can be created "just-in-time" instead of creating all of them up-front

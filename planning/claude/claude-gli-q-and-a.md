@@ -55,3 +55,9 @@ Answer: Yes we can do this, we can just list both versions of the hashes on the 
 
 Question: For the purpose of certification, do you care about the infrastructure the code runs on?For example, AWS will occasionally upgrade the underlying OS that Lambda depends on, but this won’t affect our code directly.Are there any concerns around this?
 Answer: No, not really at all. We should be in the clear here.
+
+Question: Do we have to create all the ticket records up-front, or can the records be created when a ticket is sold?
+Answer: It is acceptable to implement a "just-in-time" ticket creation process - no need to create the records when the raffle event is created.
+
+Question: Can we assign a range of tickets to an RSU, or do we need to transmit the actual ticket numbers?
+Answer: You can most certainly give the RSU a range of tickets instead of each ticket number individually.

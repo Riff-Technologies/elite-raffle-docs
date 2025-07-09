@@ -11,11 +11,11 @@
 - Some perks may have limited inventory that needs tracking
 - Packages configured separately from raffle creation (dedicated endpoints needed)
 3. **Ticketing**
-- Tickets will be created before the event becomes active.
+- Tickets will be created "just-in-time", meaning a ticket record will be created at the time of a sale.
+  - This will limit the records the database has to store, and will make allocation of tickets simpler.
 - Ticket ranges will be allocated when the raffle is created:
   - A range will be available for RSUs, and a separate range will be available for online orders.
-- An RSU will request a ticket range allocation, which will assign a block of tickets to the RSU.
-- The Postgres database will ensure a ticket cannot be sold or allocated more than once.
+- An RSU will request a ticket range allocation, which will allocate a block of tickets to the RSU.
 4. **Jackpot Seeding**
 - Seed amount = guaranteed minimum jackpot
 - Jackpot grows when event revenue exceeds seed amount

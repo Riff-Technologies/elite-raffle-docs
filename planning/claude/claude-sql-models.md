@@ -3,9 +3,9 @@
 Flow:
 
 1. Raffle Created → Define max_tickets
-2. Raffle Configured → Generate all ticket records (state: 'available')
-3. RSU Allocation → Update tickets to 'allocated' state
-4. Sale → Create order with validation number, update tickets to 'sold'
+2. Raffle Configured → Ticket ranges defined (no tickets created yet)
+3. RSU Allocation → Reserve number range for RSU (no tickets created)
+4. Sale → Create order with validation number, create tickets in 'sold' state (just-in-time ticket creation)
 5. Draw → Select winners from sold tickets
 
 ## Service Layer Responsibilities
@@ -18,7 +18,8 @@ The following logic should be implemented in the service layer, not database tri
 - Validation number generation
 - Critical event logging
 - User reference synchronization with Cognito
-- Ticket generation when raffle moves to 'configured' state
+- **Just-in-time ticket creation when orders are completed**
+- **Draw number assignment and uniqueness validation**
 
 ## Core Tables
 
@@ -50,6 +51,7 @@ jackpot_seed_cents BIGINT DEFAULT 0
 jackpot_starting_cents BIGINT DEFAULT 0
 revenue_calculation_method VARCHAR(50) NOT NULL DEFAULT 'gross_revenue'
 max_tickets INTEGER NOT NULL
+tickets_sold INTEGER NOT NULL DEFAULT 0  -- Counter for total tickets sold
 reconciliation_confirmed_at TIMESTAMPTZ
 reconciliation_confirmed_by UUID REFERENCES user_reference(id)
 cancellation_reason TEXT  -- Required when state = 'cancelled'
@@ -68,6 +70,7 @@ CONSTRAINT check_reconciliation_data CHECK (
 CONSTRAINT check_cancellation_reason CHECK (
     (state != 'cancelled' OR cancellation_reason IS NOT NULL)
 )
+CONSTRAINT check_tickets_sold CHECK (tickets_sold >= 0 AND tickets_sold <= max_tickets)
 ```
 
 ### ticket_allocation_range
@@ -79,7 +82,8 @@ range_type VARCHAR(20) NOT NULL  -- rsu, online, reserve
 range_start INTEGER NOT NULL
 range_end INTEGER NOT NULL
 default_allocation_size INTEGER NOT NULL DEFAULT 1
-allocated INTEGER NOT NULL DEFAULT 0  -- running counter
+allocated INTEGER NOT NULL DEFAULT 0  -- running counter of allocated ranges
+tickets_sold INTEGER NOT NULL DEFAULT 0  -- running counter of tickets actually sold
 available INTEGER NOT NULL  -- computed as (range_end - range_start + 1 - allocated)
 created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -87,6 +91,7 @@ updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 UNIQUE(raffle_event_id, range_type)
 CONSTRAINT check_range_order CHECK (range_end >= range_start)
 CONSTRAINT check_allocation CHECK (allocated <= (range_end - range_start + 1))
+CONSTRAINT check_tickets_sold CHECK (tickets_sold <= allocated)
 ```
 
 ### prize_template
@@ -275,6 +280,7 @@ state VARCHAR(20) NOT NULL DEFAULT 'pending'  -- pending, active, exhausted, can
 tickets_sold INTEGER NOT NULL DEFAULT 0  -- counter for tracking (updated by service layer)
 tickets_voided INTEGER NOT NULL DEFAULT 0  -- counter for tracking (updated by service layer)
 tickets_available INTEGER NOT NULL  -- computed as (total_tickets - tickets_sold - tickets_voided)
+next_draw_number INTEGER NOT NULL  -- tracks next available number in range
 allocated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 allocated_by UUID REFERENCES user_reference(id)
 exhausted_at TIMESTAMPTZ
@@ -285,6 +291,26 @@ UNIQUE(raffle_event_id, start_number, end_number)
 CONSTRAINT check_number_range CHECK (end_number >= start_number)
 CONSTRAINT check_allocation_counts CHECK (tickets_sold + tickets_voided <= total_tickets)
 CONSTRAINT check_allocation_state CHECK (state IN ('pending', 'active', 'exhausted', 'cancelled'))
+CONSTRAINT check_next_draw_number CHECK (next_draw_number >= start_number AND next_draw_number <= end_number + 1)
+```
+
+### rsu_validation_number_block
+
+```sql
+id UUID PRIMARY KEY
+rsu_allocation_id UUID NOT NULL REFERENCES rsu_allocation(id)
+rsu_id UUID NOT NULL REFERENCES rsu(id)
+block_start VARCHAR(20) NOT NULL  -- e.g., "RSU001-2025-0001"
+block_end VARCHAR(20) NOT NULL    -- e.g., "RSU001-2025-0100"
+block_size INTEGER NOT NULL
+numbers_used INTEGER NOT NULL DEFAULT 0
+next_sequence INTEGER NOT NULL DEFAULT 1
+created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+expires_at TIMESTAMPTZ  -- optional expiration for unused numbers
+is_active BOOLEAN NOT NULL DEFAULT true
+
+UNIQUE(rsu_allocation_id, block_start)
+CONSTRAINT check_block_usage CHECK (numbers_used <= block_size)
 ```
 
 ### customer
@@ -314,6 +340,10 @@ payment_reference VARCHAR(255)  -- Stripe payment ID, etc.
 source VARCHAR(50) NOT NULL  -- online, rsu, admin
 rsu_id UUID REFERENCES rsu(id)  -- if sold via RSU
 operator_id UUID REFERENCES user_reference(id)  -- who processed if RSU sale
+allocation_id UUID REFERENCES rsu_allocation(id)  -- links to RSU allocation if RSU sale
+is_offline_sale BOOLEAN NOT NULL DEFAULT false  -- true for offline RSU sales
+offline_sync_status VARCHAR(20) DEFAULT 'pending'  -- pending, synced, failed
+offline_created_at TIMESTAMPTZ  -- when created offline on RSU
 created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 created_by UUID REFERENCES user_reference(id)
 updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -323,6 +353,7 @@ CONSTRAINT check_payment_status CHECK (payment_status IN ('pending', 'completed'
 CONSTRAINT check_validation_number CHECK (
     (payment_status != 'completed' OR validation_number IS NOT NULL)
 )
+CONSTRAINT check_offline_sync_status CHECK (offline_sync_status IN ('pending', 'synced', 'failed'))
 ```
 
 ### ticket
@@ -331,16 +362,9 @@ CONSTRAINT check_validation_number CHECK (
 id UUID PRIMARY KEY
 raffle_event_id UUID NOT NULL REFERENCES raffle_event(id)
 draw_number INTEGER NOT NULL
-state VARCHAR(50) NOT NULL DEFAULT 'available'  -- available, allocated, sold, voided, winner, claimed
-
--- Allocation fields
-allocated_to_rsu_id UUID REFERENCES rsu(id)
-allocated_at TIMESTAMPTZ
-allocation_id UUID REFERENCES rsu_allocation(id)
-
--- Sale fields (NULL until sold)
-order_id UUID REFERENCES "order"(id)
-sold_at TIMESTAMPTZ
+state VARCHAR(50) NOT NULL DEFAULT 'sold'  -- sold, voided, winner, claimed
+order_id UUID NOT NULL REFERENCES "order"(id)
+sold_at TIMESTAMPTZ NOT NULL
 sold_by UUID REFERENCES user_reference(id)
 
 -- Void fields
@@ -352,15 +376,9 @@ created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 
 UNIQUE(raffle_event_id, draw_number)
-CONSTRAINT check_ticket_state CHECK (state IN ('available', 'allocated', 'sold', 'voided', 'winner', 'claimed'))
-CONSTRAINT check_sold_data CHECK (
-    (state != 'sold' OR (order_id IS NOT NULL AND sold_at IS NOT NULL))
-)
+CONSTRAINT check_ticket_state CHECK (state IN ('sold', 'voided', 'winner', 'claimed'))
 CONSTRAINT check_voided_data CHECK (
     (state != 'voided' OR (voided_at IS NOT NULL AND voided_by IS NOT NULL AND voided_reason IS NOT NULL))
-)
-CONSTRAINT check_allocated_data CHECK (
-    (state != 'allocated' OR (allocated_to_rsu_id IS NOT NULL AND allocation_id IS NOT NULL))
 )
 ```
 
@@ -691,25 +709,33 @@ PRIMARY KEY (raffle_event_id, ticket_package_id)
 ## Entity Relationships
 
 ```
-Ticket Generation & Allocation:
-- When raffle moves to 'configured', all tickets are pre-generated
-- Tickets are created with sequential draw numbers (1 to max_tickets)
-- Initial state is 'available' for all tickets
-- ticket_allocation_range tracks the configured ranges for RSU/online/reserve
+Just-in-Time Ticket Creation:
+- When raffle moves to 'configured', NO tickets are created
+- ticket_allocation_range defines the number ranges for RSU/online/reserve
+- Tickets are created ONLY when an order is completed
 
 RSU Allocation Process:
 - RSU requests allocation from their designated range
-- Service updates tickets in that range from 'available' to 'allocated'
-- Tickets are linked to the RSU via allocated_to_rsu_id and allocation_id
+- System reserves a number range (start_number to end_number)
+- rsu_allocation tracks the range and maintains counters
+- No ticket records exist until sales occur
 
-Online Sales:
-- Pull from online range where state = 'available'
-- Direct transition from 'available' to 'sold'
+Online Sales Process:
+1. Customer selects package and completes payment
+2. System assigns sequential draw numbers from online range
+3. Tickets are created with state='sold' linked to the order
+4. Counters updated in ticket_allocation_range
+
+RSU Sales Process:
+1. RSU operator processes sale
+2. System assigns next available numbers from RSU's allocation
+3. Tickets created with state='sold' linked to order and allocation
+4. Counters updated in rsu_allocation
 
 State Transitions:
 - Raffle: created → configured → active → sales_closed → reconciling → reconciled → drawing_ready → completed
 - RSU: registered → enrolled → active → closing → closed → reconciled
-- Ticket: available → allocated → sold → voided | sold → winner → claimed
+- Ticket: sold → voided | sold → winner → claimed (no 'available' or 'allocated' states)
 - Order: pending → completed → refunded
 
 Key Relationships:
@@ -727,8 +753,6 @@ Key Relationships:
 CREATE INDEX idx_ticket_raffle_draw ON ticket(raffle_event_id, draw_number);
 CREATE INDEX idx_ticket_raffle_state ON ticket(raffle_event_id, state);
 CREATE INDEX idx_ticket_order ON ticket(order_id);
-CREATE INDEX idx_ticket_allocation ON ticket(allocation_id);
-CREATE INDEX idx_ticket_available ON ticket(raffle_event_id, state) WHERE state = 'available';
 
 CREATE INDEX idx_order_validation ON "order"(validation_number);
 CREATE INDEX idx_order_raffle ON "order"(raffle_event_id);
@@ -759,52 +783,144 @@ CREATE INDEX idx_draw_result_ticket ON draw_result(winning_ticket_id);
 
 ## Data Integrity Rules
 
-- Ticket Generation: All tickets created when raffle state changes to 'configured'
-- Unique Draw Numbers: Database enforces one ticket per draw number per raffle
-- Allocation Boundaries: RSUs can only sell tickets within their allocated range
-- Validation Uniqueness: Each order has a globally unique validation number
-- State Consistency: Ticket state changes follow defined transitions
-- Reconciliation: Cannot draw until raffle is reconciled (confirmed by admin)
-- User References: All user operations require valid user_reference record
-- Organization/Venue Active: Raffle can only be activated if both are active
+- **Just-in-Time Creation**: Tickets created only when orders complete
+- **Number Assignment**: Service layer ensures sequential assignment within ranges
+- **Unique Draw Numbers**: Database enforces one ticket per draw number per raffle
+- **Range Boundaries**: Service validates numbers stay within allocated ranges
+- **Validation Uniqueness**: Each order has a globally unique validation number
+- **State Consistency**: Ticket state changes follow defined transitions
+- **Reconciliation**: Cannot draw until raffle is reconciled (confirmed by admin)
+- **User References**: All user operations require valid user_reference record
+- **Organization/Venue Active**: Raffle can only be activated if both are active
 
-## Ticket Generation Process
+## Just-in-Time Ticket Creation Process
 
-When a raffle transitions from 'created' to 'configured':
-
-```sql
--- Example: Generate 200,000 tickets
-INSERT INTO ticket (id, raffle_event_id, draw_number, state)
-SELECT
-    gen_random_uuid(),
-    '123e4567-e89b-12d3-a456-426614174000',
-    generate_series(1, 200000),
-    'available'
-;
-
--- This creates tickets numbered 1-200,000 all in 'available' state
-```
-
-## RSU Allocation Process
-
-When RSU is allocated a range:
+When an order is completed (payment successful):
 
 ```sql
--- Update tickets in the allocated range
-UPDATE ticket
-SET state = 'allocated',
-    allocated_to_rsu_id = 'rsu-456f7890-b12c-34d5-e678-901234567abc',
-    allocation_id = 'range-123e4567-e89b-12d3-a456-426614174000',
-    allocated_at = NOW()
-WHERE raffle_event_id = '123e4567-e89b-12d3-a456-426614174000'
-  AND draw_number BETWEEN 1001 AND 1100
-  AND state = 'available';
+-- Service layer pseudocode for online sale
+BEGIN TRANSACTION;
+
+-- 1. Get next available numbers from online range
+SELECT range_start + tickets_sold as next_number
+FROM ticket_allocation_range
+WHERE raffle_event_id = ? AND range_type = 'online'
+FOR UPDATE;
+
+-- 2. Create tickets with assigned draw numbers
+INSERT INTO ticket (id, raffle_event_id, draw_number, state, order_id, sold_at)
+VALUES
+  (uuid1, raffle_id, next_number, 'sold', order_id, NOW()),
+  (uuid2, raffle_id, next_number + 1, 'sold', order_id, NOW()),
+  -- ... for each ticket in the package
+
+-- 3. Update counters
+UPDATE ticket_allocation_range
+SET tickets_sold = tickets_sold + ticket_count
+WHERE raffle_event_id = ? AND range_type = 'online';
+
+UPDATE raffle_event
+SET tickets_sold = tickets_sold + ticket_count
+WHERE id = ?;
+
+COMMIT;
 ```
 
-## Notes on Pre-generation Strategy
+## RSU Sales Process
 
-1. **Performance Consideration**: Pre-generating tickets creates a large number of records upfront
-2. **Benefits**: Guarantees no duplicate tickets, simplifies allocation logic
-3. **Storage**: For 200,000 tickets, expect ~20MB of data per raffle
-4. **Batch Operations**: Use batch inserts and updates for efficiency
-5. **Indexing**: Critical to have proper indexes on raffle_event_id + state for allocation queries
+When RSU processes a sale:
+
+```sql
+-- Service layer pseudocode for RSU sale
+BEGIN TRANSACTION;
+
+-- 1. Get next number from RSU's allocation
+SELECT next_draw_number
+FROM rsu_allocation
+WHERE id = ?
+FOR UPDATE;
+
+-- 2. Create tickets
+INSERT INTO ticket (id, raffle_event_id, draw_number, state, order_id, sold_at)
+VALUES
+  (uuid1, raffle_id, next_draw_number, 'sold', order_id, NOW()),
+  (uuid2, raffle_id, next_draw_number + 1, 'sold', order_id, NOW()),
+  -- ... for each ticket
+
+-- 3. Update allocation
+UPDATE rsu_allocation
+SET tickets_sold = tickets_sold + ticket_count,
+    next_draw_number = next_draw_number + ticket_count
+WHERE id = ?;
+
+-- 4. Update range counter
+UPDATE ticket_allocation_range
+SET tickets_sold = tickets_sold + ticket_count
+WHERE raffle_event_id = ? AND range_type = 'rsu';
+
+-- 5. Update raffle counter
+UPDATE raffle_event
+SET tickets_sold = tickets_sold + ticket_count
+WHERE id = ?;
+
+COMMIT;
+```
+
+## Offline Validation Number Strategy
+
+For RSU offline sales, we this approach to handle validation numbers:
+
+### Pre-allocated Validation Number Blocks
+
+When an RSU goes online and syncs, it receives:
+1. A block of draw numbers (ticket allocation)
+2. A block of validation numbers (pre-generated)
+
+**Implementation**:
+```sql
+-- When RSU syncs and requests offline capability
+-- Backend generates a block of validation numbers:
+-- Format: "RSU{RSU_ID}-{YEAR}-{SEQUENCE}"
+-- Example: "RSU001-2025-0001" through "RSU001-2025-0100"
+
+-- RSU stores these locally and assigns them sequentially
+-- On sync, backend validates no duplicates were created
+```
+
+**Pros**:
+- Guaranteed unique validation numbers
+- Works completely offline
+- Easy to audit and trace back to specific RSU
+- GLI compliant - deterministic and verifiable
+
+**Cons**:
+- Must pre-allocate sufficient numbers
+- Unused numbers are "wasted"
+- RSU must track which numbers are used
+
+## RSU Offline Sale Data Structure
+
+```json
+{
+  "offline_sale": {
+    "order_id": "local-uuid",
+    "validation_number": "RSU001-2025-0001",
+    "draw_numbers": [1001, 1002, 1003, 1004, 1005],
+    "package_id": "pkg-123",
+    "amount_cents": 2000,
+    "created_at": "2025-06-28T14:30:00Z",
+    "customer": {
+      "name": "John Doe",
+      "email": "john@example.com"
+    }
+  }
+}
+```
+
+## Benefits of Pre-allocated Validation Numbers:
+
+1. **Immediate Printing**: Can print valid tickets offline
+2. **Customer Confidence**: Same validation number online and offline
+3. **GLI Compliance**: Deterministic, unique, and auditable
+4. **Refund Support**: Can process refunds even before sync
+5. **Simple Implementation**: Just sequential assignment from a list

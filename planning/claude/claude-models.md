@@ -107,6 +107,21 @@ All currency values are in the lowest denomination, e.g. for USD they are in cen
 }
 ```
 
+### Ticket
+
+```json
+{
+  "id": "ticket-789a0123-c45d-67e8-f901-234567890abc",
+  "eventId": "123e4567-e89b-12d3-a456-426614174000",
+  "drawNumber": 1001,
+  "state": "sold", // "available", "allocated", "sold", "voided"
+  "rangeId": "range-123e4567-e89b-12d3-a456-426614174000", // null if not allocated
+  "orderId": "order-321b4567-d89e-12f3-a456-426614174000", // null if not sold
+  "createdAt": "2025-06-28T14:30:00Z",
+  "updatedAt": "2025-06-28T14:30:00Z"
+}
+```
+
 ### Ticket Package template
 
 ```json
@@ -214,6 +229,11 @@ All currency values are in the lowest denomination, e.g. for USD they are in cen
   },
   "defaultVenueId": "venue-987f6543-a21c-43d5-b678-123456789abc",
   "venues": ["venue-987f6543-a21c-43d5-b678-123456789abc"],
+  "operatingFee": {
+    "type": "percentage", // fixed or percentage
+    "value": null,
+    "percent": 4.5
+  },
   "isActive": true,
   "createdAt": "2025-01-15T10:00:00Z",
   "createdBy": "system",
@@ -372,21 +392,6 @@ Note: if both `organizationId` and `venueId` are null, the device is an "admin" 
     "rsuName": "RSU-001",
     "location": "Main Entrance"
   }
-}
-```
-
-### Ticket
-
-```json
-{
-  "id": "ticket-789a0123-c45d-67e8-f901-234567890abc",
-  "eventId": "123e4567-e89b-12d3-a456-426614174000",
-  "drawNumber": 1001,
-  "state": "sold", // "available", "allocated", "sold", "voided"
-  "rangeId": "range-123e4567-e89b-12d3-a456-426614174000", // null if not allocated
-  "orderId": "order-321b4567-d89e-12f3-a456-426614174000", // null if not sold
-  "createdAt": "2025-06-28T14:30:00Z",
-  "updatedAt": "2025-06-28T14:30:00Z"
 }
 ```
 
