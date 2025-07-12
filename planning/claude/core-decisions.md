@@ -13,15 +13,27 @@
 3. **Ticketing**
 - Tickets will be created "just-in-time", meaning a ticket record will be created at the time of a sale.
   - This will limit the records the database has to store, and will make allocation of tickets simpler.
-- Ticket ranges will be allocated when the raffle is created:
-  - A range will be available for RSUs, and a separate range will be available for online orders.
+- A raffle event can define "sequential" or "random" ticket sales.
+- For sequential:
+  - Ticket ranges will be allocated when the raffle is created:
+    - A range will be available for RSUs, and a separate range will be available for online orders.
+- For random:
+  - A "seed" range will be allocated to each RSU.
+  - Each seed will use a permutation function that maps each seed to a unique random ticket number across the entire raffle range.
+  - This can be done with format-preserving encryption / permutation, or a Feistel Network.
 - An RSU will request a ticket range allocation, which will allocate a block of tickets to the RSU.
+- The entire order must be voided, not individual tickets, if a void is required.
+  - The value associated with that voided order is subtracted from the jackpot.
 4. **Jackpot Seeding**
 - Seed amount = guaranteed minimum jackpot
 - Jackpot grows when event revenue exceeds seed amount
 - Revenue calculation method should be configurable per organization/event (e.g. net revenue, gross revenue)
 5. **RSU**
 - RSUs cache ticket package pricing data
+- RSUs will calculate their own unique "validation" numbers (alphanumeric characters) as ticket orders are created.
+  - The validation number generation is a critical file, and must be shared on the RSU and the core system.
+  - The validation numbers must not be predictable, and must be unique across a raffle event.
+  - They should be relatively short to enable manually entry in the admin website, but they must be unique.
 - Package updates fetched during regular RSU check-ins with system
 - RSUs report specific package sold + tickets consumed (eliminates offline pricing conflicts)
 - An RSU can be associated with an organization and/or a venue
