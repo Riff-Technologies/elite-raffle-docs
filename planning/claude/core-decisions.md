@@ -20,7 +20,7 @@
 - For random:
   - A "seed" range will be allocated to each RSU.
   - Each seed will use a permutation function that maps each seed to a unique random ticket number across the entire raffle range.
-  - This can be done with format-preserving encryption / permutation, or a Feistel Network.
+  - This will be done with format-preserving encryption / permutation.
 - An RSU will request a ticket range allocation, which will allocate a block of tickets to the RSU.
 - The entire order must be voided, not individual tickets, if a void is required.
   - The value associated with that voided order is subtracted from the jackpot.
