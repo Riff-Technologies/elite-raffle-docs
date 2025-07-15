@@ -1,3 +1,5 @@
+## TODO for documentation
+
 - Reprint tickets functionality and logging
 - End of event printed close-out report
 - Repeat last sale feature

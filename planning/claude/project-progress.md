@@ -13,6 +13,8 @@ This document tracks what we've completed so far, but does not track what remain
 
 - RNG function created with Lambda bootstrap, but not deployed to AWS yet.
 - Data models completed.
+- CRUD demonstration project created for Go Lambda function development.
+- Jupyter notebook project created that demonstrates how RSUs can be assigned a range of "seeds" that map to ticket numbers using FPE algorithm.
 
 ### Database
 
