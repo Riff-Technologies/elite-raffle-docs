@@ -1,0 +1,1316 @@
+openapi: "3.0.3"
+info:
+  title: "Elite Raffle System API"
+  version: "0.1.0"
+  description: |
+    MVP API specification for the Elite Raffle System intended for GLI-31 certification.
+    This document consolidates endpoints from planning/endpoints/endpoints-mvp.md and data
+    models from planning/claude/models.md.
+
+servers:
+  - url: https://api.elite-raffles.com
+    description: Production server
+  - url: https://staging-api.elite-raffles.com
+    description: Staging server
+  - url: http://localhost:3000
+    description: Local development server (SAM local)
+
+#######################################################################
+# TAGS                                                               #
+#######################################################################
+tags:
+  - name: "Users"
+    description: "Authentication and user reference endpoints"
+  - name: "Organizations"
+  - name: "Venues"
+  - name: "Events"
+  - name: "Packages"
+  - name: "Prizes"
+  - name: "RSUs"
+  - name: "Orders"
+  - name: "Reconciliation"
+  - name: "Draws"
+  - name: "Claims"
+  - name: "Reports"
+  - name: "System"
+  - name: "Public"
+  - name: "Admin"
+
+#######################################################################
+# PATHS                                                              #
+#######################################################################
+paths:
+  ############################################################
+  # Authentication & User Management                         #
+  ############################################################
+  /v1/users/me:
+    get:
+      tags: ["Users"]
+      summary: "Get (or create) user reference from the Cognito token"
+      responses:
+        "200":
+          $ref: "#/components/responses/UserResponse"
+  /v1/users/me/organizations/{orgId}:
+    parameters:
+      - $ref: "#/components/parameters/OrgId"
+    put:
+      tags: ["Users"]
+      summary: "Set default organization for the current user"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                isDefault:
+                  type: boolean
+      responses:
+        "204": { description: "Updated" }
+  /v1/users:
+    get:
+      tags: ["Users"]
+      summary: "List users in the current organization (admin only)"
+      responses:
+        "200":
+          description: "Array of users"
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/User"
+
+  ############################################################
+  # Organization & Venue Management                          #
+  ############################################################
+  /v1/organizations:
+    get:
+      tags: ["Organizations"]
+      summary: "List organizations available to the user"
+      responses:
+        "200":
+          description: "Array of organizations"
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Organization"
+  /v1/organizations/{id}:
+    parameters:
+      - $ref: "#/components/parameters/OrgIdPath"
+    get:
+      tags: ["Organizations"]
+      summary: "Get organization details"
+      responses:
+        "200":
+          $ref: "#/components/responses/OrganizationResponse"
+  /v1/organizations/{id}/venues:
+    parameters:
+      - $ref: "#/components/parameters/OrgIdPath"
+    get:
+      tags: ["Organizations", "Venues"]
+      summary: "List venues belonging to an organization"
+      responses:
+        "200":
+          description: "Array of venues"
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Venue"
+  /v1/organizations/{id}/rsus:
+    parameters:
+      - $ref: "#/components/parameters/OrgIdPath"
+    get:
+      tags: ["Organizations", "RSUs"]
+      summary: "List RSUs belonging to an organization"
+      responses:
+        "200":
+          description: "Array of RSUs"
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RSU"
+  /v1/organizations/{id}/users:
+    parameters:
+      - $ref: "#/components/parameters/OrgIdPath"
+    get:
+      tags: ["Organizations", "Users"]
+      summary: "List users in an organization"
+      responses:
+        "200":
+          description: "Array of users"
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/User"
+
+  /v1/venues:
+    get:
+      tags: ["Venues"]
+      summary: "List venues"
+      responses:
+        "200":
+          description: "Array of venues"
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Venue"
+  /v1/venues/{id}:
+    parameters:
+      - $ref: "#/components/parameters/VenueId"
+    get:
+      tags: ["Venues"]
+      summary: "Get venue details"
+      responses:
+        "200":
+          $ref: "#/components/responses/VenueResponse"
+
+  ############################################################
+  # Event Management                                         #
+  ############################################################
+  /v1/events:
+    post:
+      tags: ["Events"]
+      summary: "Create a new raffle event"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RaffleEvent"
+      responses:
+        "201":
+          $ref: "#/components/responses/EventResponse"
+    get:
+      tags: ["Events"]
+      summary: "List raffle events (supports query filters)"
+      responses:
+        "200":
+          description: "Array of raffle events"
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RaffleEvent"
+  /v1/events/{id}:
+    parameters:
+      - $ref: "#/components/parameters/EventId"
+    get:
+      tags: ["Events"]
+      summary: "Get detailed raffle event information"
+      responses:
+        "200":
+          $ref: "#/components/responses/EventResponse"
+    put:
+      tags: ["Events"]
+      summary: "Update an existing raffle event configuration"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RaffleEvent"
+      responses:
+        "200":
+          $ref: "#/components/responses/EventResponse"
+    delete:
+      tags: ["Events"]
+      summary: "Cancel a raffle event with a reason"
+      parameters:
+        - in: query
+          name: reason
+          schema:
+            type: string
+      responses:
+        "204": { description: "Cancelled" }
+
+  /v1/events/{id}/activate:
+    post:
+      tags: ["Events"]
+      summary: "Activate a created raffle event"
+      responses:
+        "200":
+          $ref: "#/components/responses/EventResponse"
+  /v1/events/{id}/suspend:
+    post:
+      tags: ["Events"]
+      summary: "Suspend an active raffle event"
+      responses:
+        "200":
+          $ref: "#/components/responses/EventResponse"
+  /v1/events/{id}/resume:
+    post:
+      tags: ["Events"]
+      summary: "Resume a suspended raffle event"
+      responses:
+        "200":
+          $ref: "#/components/responses/EventResponse"
+  /v1/events/{id}/close:
+    post:
+      tags: ["Events"]
+      summary: "Manually close ticket sales for an active raffle"
+      responses:
+        "200":
+          $ref: "#/components/responses/EventResponse"
+  /v1/events/{id}/packages:
+    parameters:
+      - $ref: "#/components/parameters/EventId"
+    get:
+      tags: ["Events", "Packages"]
+      summary: "List ticket packages configured for this event"
+      responses:
+        "200":
+          description: "Array of ticket packages"
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TicketPackage"
+
+  /v1/events/{id}/prizes:
+    parameters:
+      - $ref: "#/components/parameters/EventId"
+    get:
+      tags: ["Events", "Prizes"]
+      summary: "List prizes configured for this event"
+      responses:
+        "200":
+          description: "Array of prizes"
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Prize"
+
+  /v1/admin/events/{id}/state:
+    post:
+      tags: ["Admin", "Events"]
+      summary: "Force state change of a raffle event (admin override)"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                state:
+                  type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/EventResponse"
+
+  ############################################################
+  # Package & Prize Templates                                #
+  ############################################################
+  /v1/organizations/{orgId}/packages:
+    parameters:
+      - $ref: "#/components/parameters/OrgId"
+    get:
+      tags: ["Packages"]
+      summary: "List ticket package templates"
+      responses:
+        "200":
+          description: "Array of ticket package templates"
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TicketPackageTemplate"
+    post:
+      tags: ["Packages"]
+      summary: "Create a ticket package template"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TicketPackageTemplate"
+      responses:
+        "201":
+          $ref: "#/components/responses/TicketPackageTemplateResponse"
+
+  /v1/organizations/{orgId}/packages/{id}:
+    parameters:
+      - $ref: "#/components/parameters/OrgId"
+      - $ref: "#/components/parameters/PackageId"
+    get:
+      tags: ["Packages"]
+      summary: "Get ticket package template"
+      responses:
+        "200":
+          $ref: "#/components/responses/TicketPackageTemplateResponse"
+    put:
+      tags: ["Packages"]
+      summary: "Update ticket package template"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TicketPackageTemplate"
+      responses:
+        "200":
+          $ref: "#/components/responses/TicketPackageTemplateResponse"
+    delete:
+      tags: ["Packages"]
+      summary: "Delete ticket package template"
+      responses:
+        "204": { description: "Deleted" }
+
+  /v1/organizations/{orgId}/prizes:
+    parameters:
+      - $ref: "#/components/parameters/OrgId"
+    get:
+      tags: ["Prizes"]
+      summary: "List prize templates"
+      responses:
+        "200":
+          description: "Array of prize templates"
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PrizeTemplate"
+    post:
+      tags: ["Prizes"]
+      summary: "Create a prize template"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PrizeTemplate"
+      responses:
+        "201":
+          $ref: "#/components/responses/PrizeTemplateResponse"
+
+  /v1/organizations/{orgId}/prizes/{id}:
+    parameters:
+      - $ref: "#/components/parameters/OrgId"
+      - $ref: "#/components/parameters/PrizeId"
+    get:
+      tags: ["Prizes"]
+      summary: "Get prize template"
+      responses:
+        "200":
+          $ref: "#/components/responses/PrizeTemplateResponse"
+    put:
+      tags: ["Prizes"]
+      summary: "Update prize template"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PrizeTemplate"
+      responses:
+        "200":
+          $ref: "#/components/responses/PrizeTemplateResponse"
+    delete:
+      tags: ["Prizes"]
+      summary: "Delete prize template"
+      responses:
+        "204": { description: "Deleted" }
+
+  ############################################################
+  # RSU Management & Operations                              #
+  ############################################################
+  /v1/rsus:
+    get:
+      tags: ["RSUs"]
+      summary: "List RSUs (with current state and stats)"
+      responses:
+        "200":
+          description: "Array of RSUs"
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RSU"
+    post:
+      tags: ["RSUs"]
+      summary: "Register a new RSU"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RSU"
+      responses:
+        "201":
+          $ref: "#/components/responses/RSUResponse"
+
+  /v1/rsus/{id}:
+    parameters:
+      - $ref: "#/components/parameters/RSUId"
+    get:
+      tags: ["RSUs"]
+      summary: "Get RSU details"
+      responses:
+        "200":
+          $ref: "#/components/responses/RSUResponse"
+    put:
+      tags: ["RSUs"]
+      summary: "Update RSU configuration"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RSU"
+      responses:
+        "200":
+          $ref: "#/components/responses/RSUResponse"
+
+  /v1/rsus/{id}/events:
+    parameters:
+      - $ref: "#/components/parameters/RSUId"
+    get:
+      tags: ["RSUs", "Events"]
+      summary: "List available events for RSU enrollment"
+      responses:
+        "200":
+          description: "Array of raffle events"
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RaffleEvent"
+  /v1/rsus/{id}/enroll:
+    parameters:
+      - $ref: "#/components/parameters/RSUId"
+    post:
+      tags: ["RSUs", "Events"]
+      summary: "Enroll RSU in an event"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                eventId:
+                  $ref: "#/components/parameters/EventId/schema"
+      responses:
+        "200":
+          description: "Enrollment confirmation"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  allocation:
+                    $ref: "#/components/schemas/RSUAllocation"
+
+  # Allocation Management
+  /v1/rsus/{id}/allocations:
+    parameters:
+      - $ref: "#/components/parameters/RSUId"
+    post:
+      tags: ["RSUs"]
+      summary: "Request ticket allocation"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                raffleEventId:
+                  $ref: "#/components/parameters/EventId/schema"
+                size:
+                  type: integer
+      responses:
+        "201":
+          description: "Allocation created"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RSUAllocation"
+    get:
+      tags: ["RSUs"]
+      summary: "List allocations for an RSU"
+      responses:
+        "200":
+          description: "Array of allocations"
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RSUAllocation"
+
+  # RSU batch offline sales upload
+  /v1/rsus/{id}/orders/batch:
+    parameters:
+      - $ref: "#/components/parameters/RSUId"
+    post:
+      tags: ["RSUs", "Orders"]
+      summary: "Upload offline sales batch for an RSU"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: "#/components/schemas/RSUOfflineSaleRecord"
+      responses:
+        "202":
+          description: "Batch accepted"
+  /v1/rsus/{id}/sync:
+    parameters:
+      - $ref: "#/components/parameters/RSUId"
+    post:
+      tags: ["RSUs"]
+      summary: "RSU heartbeat / sync"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                  description: "Current RSU status code (e.g., online, offline, error)"
+                firmwareVersion:
+                  type: string
+                counters:
+                  type: object
+                  description: "Key-value map of ticket counters or other metrics"
+      responses:
+        "200":
+          description: "Sync response with any configuration or package updates"
+          content:
+            application/json:
+              schema:
+                type: object
+
+  ############################################################
+  # Sales & Orders                                           #
+  ############################################################
+  /v1/orders:
+    post:
+      tags: ["Orders"]
+      summary: "Create an order (online or RSU)"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Order"
+      responses:
+        "201":
+          $ref: "#/components/responses/OrderResponse"
+    get:
+      tags: ["Orders"]
+      summary: "List orders (supports filters)"
+      responses:
+        "200":
+          description: "Array of orders"
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Order"
+  /v1/orders/{id}:
+    parameters:
+      - $ref: "#/components/parameters/OrderId"
+    get:
+      tags: ["Orders"]
+      summary: "Get order details"
+      responses:
+        "200":
+          $ref: "#/components/responses/OrderResponse"
+  /v1/orders/{id}/void:
+    parameters:
+      - $ref: "#/components/parameters/OrderId"
+    post:
+      tags: ["Orders"]
+      summary: "Void an entire order"
+      responses:
+        "200":
+          $ref: "#/components/responses/OrderResponse"
+  /v1/orders/{id}/payment/initiate:
+    parameters:
+      - $ref: "#/components/parameters/OrderId"
+    post:
+      tags: ["Orders"]
+      summary: "Initiate payment flow for an order"
+      responses:
+        "202":
+          description: "Payment initiated"
+  /v1/orders/{id}/payment/confirm:
+    parameters:
+      - $ref: "#/components/parameters/OrderId"
+    post:
+      tags: ["Orders"]
+      summary: "Confirm payment (e.g. webhook)"
+      responses:
+        "200":
+          $ref: "#/components/responses/OrderResponse"
+  /v1/orders/{id}/refund:
+    parameters:
+      - $ref: "#/components/parameters/OrderId"
+    post:
+      tags: ["Orders"]
+      summary: "Initiate refund"
+      responses:
+        "202":
+          description: "Refund initiated"
+  /v1/orders/{id}/reprint:
+    parameters:
+      - $ref: "#/components/parameters/OrderId"
+    post:
+      tags: ["Orders"]
+      summary: "Reprint ticket(s) for an order; generates audit log entry"
+      responses:
+        "200":
+          $ref: "#/components/responses/OrderResponse"
+
+  ############################################################
+  # Reconciliation                                           #
+  ############################################################
+  /v1/events/{id}/reconciliation:
+    parameters:
+      - $ref: "#/components/parameters/EventId"
+    get:
+      tags: ["Reconciliation"]
+      summary: "Get reconciliation status for an event"
+      responses:
+        "200":
+          description: "Reconciliation info"
+          content:
+            application/json:
+              schema:
+                type: object
+    post:
+      tags: ["Reconciliation"]
+      summary: "Confirm reconciliation complete manually"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                confirmed:
+                  type: boolean
+      responses:
+        "204": { description: "Confirmed" }
+
+  ############################################################
+  # Draw Management & Prize Claims                           #
+  ############################################################
+  /v1/events/{id}/draw:
+    parameters:
+      - $ref: "#/components/parameters/EventId"
+    post:
+      tags: ["Draws"]
+      summary: "Initiate draw for an event"
+      responses:
+        "202":
+          description: "Draw started"
+    get:
+      tags: ["Draws"]
+      summary: "Get draw information and results"
+      responses:
+        "200":
+          description: "Draw info"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  drawExecution:
+                    $ref: "#/components/schemas/DrawExecution"
+                  results:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/DrawResult"
+
+  # Claims
+  /v1/events/{id}/claims/validate:
+    parameters:
+      - $ref: "#/components/parameters/EventId"
+    post:
+      tags: ["Claims"]
+      summary: "Validate ticket number and validation number"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                ticketNumber:
+                  type: integer
+                validationNumber:
+                  type: string
+      responses:
+        "200":
+          description: "Validation result"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  isValid:
+                    type: boolean
+                  claimId:
+                    type: string
+  /v1/events/{id}/claims/{claimId}/confirm:
+    parameters:
+      - $ref: "#/components/parameters/EventId"
+      - in: path
+        name: claimId
+        required: true
+        schema:
+          type: string
+    post:
+      tags: ["Claims"]
+      summary: "Confirm prize claimed"
+      responses:
+        "200":
+          description: "Claim confirmed"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PrizeClaim"
+
+  ############################################################
+  # Reporting (GLI-31 §2.8)                                  #
+  ############################################################
+  /v1/reports/events/{id}/summary:
+    parameters:
+      - $ref: "#/components/parameters/EventId"
+    get:
+      tags: ["Reports"]
+      summary: "Event summary report"
+      responses:
+        "200":
+          description: "Event summary"
+          content:
+            application/json:
+              schema:
+                type: object
+  /v1/reports/events/{id}/sales:
+    parameters:
+      - $ref: "#/components/parameters/EventId"
+    get:
+      tags: ["Reports"]
+      summary: "Detailed sales report"
+      responses:
+        "200":
+          description: "Sales report"
+          content:
+            application/json:
+              schema:
+                type: object
+  /v1/reports/events/{id}/reconciliation:
+    parameters:
+      - $ref: "#/components/parameters/EventId"
+    get:
+      tags: ["Reports"]
+      summary: "Reconciliation report"
+      responses:
+        "200":
+          description: "Reconciliation report"
+          content:
+            application/json:
+              schema:
+                type: object
+  /v1/reports/events/{id}/prizes:
+    parameters:
+      - $ref: "#/components/parameters/EventId"
+    get:
+      tags: ["Reports"]
+      summary: "Prize distribution report"
+      responses:
+        "200":
+          description: "Prize distribution"
+          content:
+            application/json:
+              schema:
+                type: object
+  /v1/reports/revenue:
+    get:
+      tags: ["Reports"]
+      summary: "Revenue report by date range"
+      parameters:
+        - in: query
+          name: startDate
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: endDate
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: "Revenue report"
+          content:
+            application/json:
+              schema:
+                type: object
+  /v1/reports/rsus/{id}/activity:
+    parameters:
+      - $ref: "#/components/parameters/RSUId"
+    get:
+      tags: ["Reports", "RSUs"]
+      summary: "RSU activity report"
+      responses:
+        "200":
+          description: "RSU activity"
+          content:
+            application/json:
+              schema:
+                type: object
+
+  ############################################################
+  # System & Compliance                                      #
+  ############################################################
+  /v1/system/verification:
+    get:
+      tags: ["System"]
+      summary: "Get system checksums"
+      responses:
+        "200":
+          description: "Checksums"
+          content:
+            application/json:
+              schema:
+                type: object
+  /v1/system/health:
+    get:
+      tags: ["System"]
+      summary: "Health check"
+      responses:
+        "200":
+          description: "Health info"
+          content:
+            application/json:
+              schema:
+                type: object
+  /v1/system/verify:
+    post:
+      tags: ["System"]
+      summary: "Trigger system verification"
+      responses:
+        "202":
+          description: "Verification started"
+  /v1/system/configuration:
+    get:
+      tags: ["System"]
+      summary: "Retrieve current system configuration"
+      responses:
+        "200":
+          description: "System configuration"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SystemConfiguration"
+
+  # Critical events
+  /v1/events/critical:
+    get:
+      tags: ["System"]
+      summary: "Query critical events log"
+      parameters:
+        - in: query
+          name: from
+          schema:
+            type: string
+            format: date-time
+        - in: query
+          name: to
+          schema:
+            type: string
+            format: date-time
+      responses:
+        "200":
+          description: "Critical events"
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CriticalEvent"
+  /v1/events/critical/export:
+    post:
+      tags: ["System"]
+      summary: "Export critical events for regulators"
+      responses:
+        "202":
+          description: "Export started"
+
+  ############################################################
+  # Public (No Auth)                                         #
+  ############################################################
+  /v1/public/events/{id}:
+    parameters:
+      - $ref: "#/components/parameters/EventId"
+    get:
+      tags: ["Public"]
+      summary: "Public raffle event info"
+      responses:
+        "200":
+          $ref: "#/components/responses/EventResponse"
+  /v1/public/events/{id}/jackpot:
+    parameters:
+      - $ref: "#/components/parameters/EventId"
+    get:
+      tags: ["Public"]
+      summary: "Current jackpot value"
+      responses:
+        "200":
+          description: "Jackpot info"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  jackpot:
+                    type: integer
+  /v1/public/events/{id}/results:
+    parameters:
+      - $ref: "#/components/parameters/EventId"
+    get:
+      tags: ["Public"]
+      summary: "Draw results"
+      responses:
+        "200":
+          description: "Results"
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DrawResult"
+  /v1/public/verification:
+    get:
+      tags: ["Public"]
+      summary: "System checksums (public)"
+      responses:
+        "200":
+          description: "Checksums"
+          content:
+            application/json:
+              schema:
+                type: object
+
+#######################################################################
+# COMPONENTS                                                          #
+#######################################################################
+components:
+  ########################################
+  # Common parameters                    #
+  ########################################
+  parameters:
+    OrgId:
+      in: path
+      name: orgId
+      required: true
+      schema:
+        type: string
+    OrgIdPath:
+      in: path
+      name: id
+      required: true
+      schema:
+        type: string
+    VenueId:
+      in: path
+      name: id
+      required: true
+      schema:
+        type: string
+    EventId:
+      in: path
+      name: id
+      required: true
+      schema:
+        type: string
+    PackageId:
+      in: path
+      name: id
+      required: true
+      schema:
+        type: string
+    PrizeId:
+      in: path
+      name: id
+      required: true
+      schema:
+        type: string
+    RSUId:
+      in: path
+      name: id
+      required: true
+      schema:
+        type: string
+    OrderId:
+      in: path
+      name: id
+      required: true
+      schema:
+        type: string
+
+  ########################################
+  # Schemas                              #
+  ########################################
+  schemas:
+    # Note: Only key properties are included to keep spec concise.
+    RaffleEvent:
+      type: object
+      required: [id, name, state, configuration]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        description: { type: string }
+        organizationId: { type: string }
+        venueId: { type: string }
+        eventIdentifier: { type: string }
+        state: { type: string }
+        configuration:
+          $ref: "#/components/schemas/RaffleEventConfiguration"
+        createdAt: { type: string, format: date-time }
+    RaffleEventConfiguration:
+      type: object
+      properties:
+        salesStartTime: { type: string, format: date-time }
+        salesEndTime: { type: string, format: date-time }
+        drawTime: { type: string, format: date-time }
+        maxTickets: { type: integer }
+        ticketPackageIds:
+          type: array
+          items: { type: string }
+        prizeIds:
+          type: array
+          items: { type: string }
+    Ticket:
+      type: object
+      properties:
+        id: { type: string }
+        eventId: { type: string }
+        drawNumber: { type: integer }
+        state: { type: string }
+        orderId: { type: string }
+        soldAt: { type: string, format: date-time }
+    PrizeTemplate:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        type: { type: string }
+        value: { type: number }
+        percentage: { type: number }
+    Prize:
+      type: object
+      properties:
+        id: { type: string }
+        eventId: { type: string }
+        name: { type: string }
+        type: { type: string }
+        percentage: { type: number }
+        winnerCount: { type: integer }
+    TicketPackageTemplate:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        ticketCount: { type: integer }
+        price: { type: integer }
+    TicketPackage:
+      type: object
+      properties:
+        id: { type: string }
+        eventId: { type: string }
+        ticketCount: { type: integer }
+        price: { type: integer }
+    Perk:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        type: { type: string }
+    PerkClaim:
+      type: object
+      properties:
+        id: { type: string }
+        perkInstanceId: { type: string }
+        orderId: { type: string }
+        status: { type: string }
+    RSU:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        description: { type: string }
+        organizationId: { type: string }
+        state: { type: string }
+    RSUAllocation:
+      type: object
+      properties:
+        id: { type: string }
+        raffleEventId: { type: string }
+        startNumber: { type: integer }
+        endNumber: { type: integer }
+        state: { type: string }
+    RSUOfflineSaleRecord:
+      type: object
+      properties:
+        localId: { type: string }
+        eventId: { type: string }
+        allocationId: { type: string }
+        validationNumber: { type: string }
+        ticketCount: { type: integer }
+        totalAmount: { type: integer }
+        currency: { type: string }
+    Order:
+      type: object
+      properties:
+        id: { type: string }
+        validationNumber: { type: string }
+        eventId: { type: string }
+        packageId: { type: string }
+        totalAmount: { type: integer }
+        currency: { type: string }
+        paymentStatus: { type: string }
+    Organization:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        licenseNumber: { type: string }
+    Venue:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        capacity: { type: integer }
+    Address:
+      type: object
+      properties:
+        id: { type: string }
+        street: { type: string }
+        city: { type: string }
+    User:
+      type: object
+      properties:
+        id: { type: string }
+        displayName: { type: string }
+        lastLogin: { type: string, format: date-time }
+    DrawExecution:
+      type: object
+      properties:
+        id: { type: string }
+        raffleEventId: { type: string }
+        state: { type: string }
+        startedAt: { type: string, format: date-time }
+    DrawResult:
+      type: object
+      properties:
+        id: { type: string }
+        drawExecutionId: { type: string }
+        prizeId: { type: string }
+        winningNumber: { type: integer }
+    PrizeClaim:
+      type: object
+      properties:
+        id: { type: string }
+        drawResultId: { type: string }
+        claimedAt: { type: string, format: date-time }
+    CriticalEvent:
+      type: object
+      properties:
+        id: { type: string }
+        eventType: { type: string }
+        timestamp: { type: string, format: date-time }
+    SystemConfiguration:
+      type: object
+      properties:
+        id: { type: string }
+        version: { type: string }
+        settings: { type: object }
+    ValidationNumberBlock:
+      type: object
+      properties:
+        id: { type: string }
+        blockStart: { type: string }
+        blockEnd: { type: string }
+        blockSize: { type: integer }
+
+  ########################################
+  # Standard Responses                   #
+  ########################################
+  responses:
+    UserResponse:
+      description: "User object"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/User"
+    OrganizationResponse:
+      description: "Organization object"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Organization"
+    VenueResponse:
+      description: "Venue object"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Venue"
+    EventResponse:
+      description: "Raffle event object"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/RaffleEvent"
+    TicketPackageTemplateResponse:
+      description: "Ticket package template object"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/TicketPackageTemplate"
+    PrizeTemplateResponse:
+      description: "Prize template object"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/PrizeTemplate"
+    RSUResponse:
+      description: "RSU object"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/RSU"
+    OrderResponse:
+      description: "Order object"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Order"

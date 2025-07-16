@@ -33,6 +33,7 @@
 - **Draw Management**
   - Initiate 50/50 draw
   - Display winning number
+  - Verify winning ticket(s) / validation number(s)
 
 ### RSU Management
 - **Device Registry**
@@ -149,7 +150,7 @@
 - Checksum displays (public website)
 - State transition controls with reasons
 - Error state visibility
-- Countdown timer for coordinated closing
+- RSU and online sales prevented when raffle event sales are closed
 
 **Architecture Decisions Supporting Compliance:**
 - JavaScript injection allows updates without affecting certified Android shell
