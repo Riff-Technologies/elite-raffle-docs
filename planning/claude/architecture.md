@@ -23,7 +23,7 @@ The Electronic Raffle System is built on AWS infrastructure using a serverless a
 
 All critical services are implemented as Lambda functions using Go runtime for:
 
-- Static compilation enabling easy checksum validation
+- Static compilation enabling easy checksum verification
 - Cross-region deployment consistency
 - Performance efficiency
 - Strong typing for critical financial calculations
@@ -31,23 +31,30 @@ All critical services are implemented as Lambda functions using Go runtime for:
 **Components:**
 
 1. **Raffle Core Service**
+
 - Manages complete raffle lifecycle and state transitions
 - Handles ticket generation, allocation, and sales
 - Processes draws and determines winners
 - Manages RSU device enrollment and synchronization
 - Implements reconciliation workflows
 - Critical file component per GLI requirements
+
 1. **RNG Service**
+
 - Provides cryptographically secure random numbers
 - Uses Go’s crypto/rand library (GLI approved)
 - Stateless design for simplicity
 - Critical file component per GLI requirements
+
 1. **Payment Service**
-- Integrates with payment providers (initially Stripe)
+
+- Integrates with payment providers (likely Stripe, Paysafe, or PayFacto)
 - Processes payment webhooks
 - Maintains payment reference data only
 - Designed for provider portability
+
 1. **Reporting Service**
+
 - Generates all GLI-31 required reports
 - Provides audit trails and compliance reports
 - Supports jurisdiction-specific requirements
@@ -57,8 +64,7 @@ All critical services are implemented as Lambda functions using Go runtime for:
 **Primary Database**: Aurora PostgreSQL
 
 - All transactional raffle data
-- Pre-generated ticket inventory
-- Complex state management
+- Ticket inventory (just-in-time ticket creation)
 - High availability with automated backups
 
 **Critical Event Storage**: DynamoDB
@@ -70,7 +76,6 @@ All critical services are implemented as Lambda functions using Go runtime for:
 **Archive Storage**: S3 with Glacier
 
 - Long-term audit log retention
-- Cross-region replication for compliance
 - Lifecycle policies for cost optimization
 
 **Configuration Storage**: SSM Parameter Store
@@ -82,20 +87,26 @@ All critical services are implemented as Lambda functions using Go runtime for:
 #### 3.3 Frontend Applications
 
 1. **Public Website**
-- Customer ticket purchases
+
+- Customer ticket purchases (authenticated or guest sessions)
 - Raffle information and results
-- System verification status display
+- System verification status display (for regulator verification)
+
 1. **Administrator Website**
+
 - Complete raffle management
 - Reconciliation workflows
 - System monitoring and reporting
-- User and device management
+- User and RSU device management
+
 1. **RSU Android Application**
+
 - Offline-capable ticket sales
-- Real-time synchronization
+- Heartbeat synchronization
 - Push notifications for operators
-- Countdown timer for coordinated closing
+- Countdown timer for coordinated raffle event closing
 - Checksum display for verification
+- OTA update support for new features, while maintaining static checksum
 
 #### 3.4 API and Security Layer
 
@@ -103,7 +114,13 @@ All critical services are implemented as Lambda functions using Go runtime for:
 
 - Single entry point for all clients
 - Authentication and authorization
+- Public and protected routes
 - Request validation and rate limiting
+
+**Event Bridge**
+
+- Critical events are emitted to a common event bus
+- Rules can be configured in the future for handling these events, if future features require expansion of core features
 
 **Web Application Firewall (WAF)**
 
@@ -113,17 +130,23 @@ All critical services are implemented as Lambda functions using Go runtime for:
 
 **Authentication**: AWS Cognito
 
-- Multiple user pools (public, admin, operator)
+- Multiple user pools (public, admin/operator)
+- Aurora Database will reference the Cognito Sub and maintain roles and permissions
 - MFA for administrative access
-- Device binding for RSUs
 
 #### 3.5 System Verification and Monitoring
 
 **Verification Lambda**
 
-- Scheduled checksum validation
-- Prevents operations on verification failure
+- Scheduled checksum verification
+- Exposed endpoint for checksum verification
+- SNS Notification on verification failure
 - Publishes status for regulatory review
+
+**Notifications**: SNS
+
+- Notifies administrators of checksum verification failure
+- Supports mobile push notifications (event communication with operators, raffle event countdown, etc.)
 
 **Monitoring**: CloudWatch
 
@@ -140,7 +163,7 @@ All critical services are implemented as Lambda functions using Go runtime for:
 ### 4. Network Architecture
 
 - **VPC**: Isolated network for internal services
-- **Multi-AZ Deployment**: High availability
+- **Single-AZ Deployment**: Can be expanded to multi-AZ
 - **API Gateway**: Only public-facing endpoint
 - **Internet Gateway**: Outbound connections for integrations
 
@@ -170,11 +193,12 @@ Per GLI requirements, these components are designated as critical files:
 
 ### 7. RSU Offline Capabilities
 
-- Local SQLite storage for offline sales
+- Local SQLite storage for offline cash sales
 - Automatic synchronization when online
 - Coordinated countdown timers
-- Push notifications between devices
+- Push notifications between devices for communications and other features
 - Automatic deactivation on buffer limits
+- Manages its own ticket creation and order validation number creation
 
 ### 8. Technology Standards
 
@@ -192,6 +216,7 @@ Per GLI requirements, these components are designated as critical files:
 
 **CI/CD Pipeline**:
 
+- Github Actions
 - Automated testing and security scanning
 - Checksum generation for verification
 - Blue/green deployments
@@ -215,14 +240,14 @@ Per GLI requirements, these components are designated as critical files:
 
 ### 11. Key Architectural Decisions
 
-|Decision                  |Rationale                                         |
-|--------------------------|--------------------------------------------------|
-|AWS as primary cloud      |Comprehensive services, compliance capabilities   |
-|Serverless architecture   |Scalability, reduced operational overhead         |
-|Go for critical components|Performance, type safety, easy checksum validation|
-|Pre-generated ticket model|Ensures ticket uniqueness and allocation control  |
-|Separate IaC repositories |Clear separation of concerns                      |
-|Aurora PostgreSQL         |Managed service with strong consistency           |
+| Decision                   | Rationale                                          |
+| -------------------------- | -------------------------------------------------- |
+| AWS as primary cloud       | Comprehensive services, compliance capabilities    |
+| Serverless architecture    | Scalability, reduced operational overhead          |
+| Go for critical components | Performance, type safety, easy checksum validation |
+| Just-in-time ticket model  | Pre-allocation ranges for RSUs, Public, Internal   |
+| Separate IaC repositories  | Clear separation of concerns                       |
+| Aurora PostgreSQL          | Managed service with strong consistency            |
 
 ### 12. Future Considerations
 
