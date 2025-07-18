@@ -27,8 +27,8 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto"; -- Provides gen_random_uuid()
 Lookup tables are preferred over native `ENUM`s for easier modification at runtime.
 
 ```sql
--- Raffle event states (created ➜ active ➜ suspended ➜ closed ➜ cancelled)
-CREATE TABLE raffle_event_states (
+-- Event states (created ➜ active ➜ suspended ➜ closed ➜ cancelled)
+CREATE TABLE event_states (
     key              TEXT PRIMARY KEY,
     description      TEXT NOT NULL
 );
@@ -96,11 +96,41 @@ CREATE TABLE users (
     created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- RBAC Tables ---------------------------------------------------------
+-- Roles
+CREATE TABLE roles (
+    id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name             TEXT NOT NULL,
+    description      TEXT,
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Permissions
+CREATE TABLE permissions (
+    id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name             TEXT NOT NULL,
+    description      TEXT,
+    resource_type    TEXT NOT NULL,  -- raffle, rsu, organization, etc.
+    action           TEXT NOT NULL,  -- create, read, update, delete, void, reconcile, etc.
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(resource_type, action)
+);
+
+-- Role-Permission mapping
+CREATE TABLE role_permissions (
+    role_id          UUID NOT NULL REFERENCES roles(id),
+    permission_id    UUID NOT NULL REFERENCES permissions(id),
+    PRIMARY KEY (role_id, permission_id),
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 -- User ↔ Organization (many-to-many with role)
 CREATE TABLE organization_users (
     organization_id  UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-    user_id          UUID NOT NULL REFERENCES users(id)         ON DELETE CASCADE,
-    role             TEXT  NOT NULL,           -- admin | operator | …
+    user_id          UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    role_id          UUID NOT NULL REFERENCES roles(id),
     is_default       BOOLEAN DEFAULT FALSE,
     joined_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     PRIMARY KEY (organization_id, user_id)
@@ -136,27 +166,28 @@ CREATE TABLE venues (
 ### Indexes
 
 ```sql
-CREATE INDEX idx_venues_org   ON venues(organization_id);
+CREATE INDEX idx_venues_org ON venues(organization_id);
 CREATE INDEX idx_users_last_login ON users(last_login);
+CREATE INDEX idx_role_permissions_role ON role_permissions(role_id);
+CREATE INDEX idx_org_users_role ON organization_users(organization_id, role_id);
 ```
 
 ---
 
-## 4 – Raffle Events & Related Configuration
+## 4 – Events & Related Configuration
 
 ```sql
--- Raffle Events -------------------------------------------------------
-CREATE TABLE raffle_events (
+-- Events -------------------------------------------------------
+CREATE TABLE events (
     id                       UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name                     TEXT NOT NULL,
     description              TEXT,
     organization_id          UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
     venue_id                 UUID REFERENCES venues(id),
-    event_identifier         TEXT UNIQUE NOT NULL,
-    state                    TEXT NOT NULL REFERENCES raffle_event_states(key),
+    state                    TEXT NOT NULL REFERENCES event_states(key),
     configuration            JSONB NOT NULL,   -- sales timings, jackpot, etc.
     ticket_allocation        JSONB NOT NULL,   -- ranges & counters
-    total_sold               INTEGER NOT NULL DEFAULT 0,
+    max_tickets              INTEGER NOT NULL, -- maximum number of tickets that can be sold
     reconciliation_confirmed_at TIMESTAMPTZ,
     reconciliation_confirmed_by UUID,
     created_at               TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -185,7 +216,7 @@ CREATE TABLE ticket_package_templates (
 -- Ticket Packages (per event) ----------------------------------------
 CREATE TABLE ticket_packages (
     id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    event_id         UUID NOT NULL REFERENCES raffle_events(id) ON DELETE CASCADE,
+    event_id         UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
     name             TEXT NOT NULL,
     description      TEXT,
     ticket_count     INTEGER NOT NULL CHECK (ticket_count > 0),
@@ -222,12 +253,12 @@ CREATE TABLE prize_templates (
 -- Prizes (per event) -------------------------------------------------
 CREATE TABLE prizes (
     id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    event_id         UUID NOT NULL REFERENCES raffle_events(id) ON DELETE CASCADE,
+    event_id         UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
     name             TEXT NOT NULL,
     description      TEXT,
     type             TEXT NOT NULL,
     value            NUMERIC(14,2),   -- nullable for percentage
-    percentage       NUMERIC(5,2),
+    percentage       NUMERIC(5,2) CHECK (percentage IS NULL OR (percentage >= 0 AND percentage <= 100)),
     currency         CHAR(3),
     position         SMALLINT NOT NULL,
     winner_count     SMALLINT NOT NULL DEFAULT 1,
@@ -241,9 +272,10 @@ CREATE TABLE prizes (
 ### Indexes
 
 ```sql
-CREATE INDEX idx_raffle_events_org   ON raffle_events(organization_id);
-CREATE INDEX idx_raffle_events_state ON raffle_events(state);
-CREATE INDEX idx_prizes_event_pos    ON prizes(event_id, position);
+CREATE INDEX idx_events_org ON events(organization_id);
+CREATE INDEX idx_events_state ON events(state);
+CREATE INDEX idx_prizes_event_pos ON prizes(event_id, position);
+CREATE INDEX idx_event_config_gin ON events USING gin (configuration jsonb_path_ops);
 ```
 
 ---
@@ -272,8 +304,8 @@ CREATE TABLE rsus (
 -- RSU Allocations ----------------------------------------------------
 CREATE TABLE rsu_allocations (
     id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    raffle_event_id  UUID NOT NULL REFERENCES raffle_events(id) ON DELETE CASCADE,
-    rsu_id           UUID NOT NULL REFERENCES rsus(id)          ON DELETE CASCADE,
+    event_id         UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+    rsu_id           UUID NOT NULL REFERENCES rsus(id) ON DELETE CASCADE,
     start_number     INTEGER NOT NULL,
     end_number       INTEGER NOT NULL,
     next_draw_number INTEGER NOT NULL,
@@ -282,34 +314,18 @@ CREATE TABLE rsu_allocations (
     tickets_sold     INTEGER NOT NULL DEFAULT 0,
     tickets_voided   INTEGER NOT NULL DEFAULT 0,
     tickets_available INTEGER NOT NULL,
-    validation_number_block JSONB NOT NULL, -- holds block info (future split)
     allocated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     allocated_by     UUID,
     exhausted_at     TIMESTAMPTZ,
     metadata         JSONB DEFAULT '{}'::JSONB
 );
 
--- Validation Number Blocks ------------------------------------------
-CREATE TABLE validation_number_blocks (
-    id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    rsu_allocation_id UUID NOT NULL REFERENCES rsu_allocations(id) ON DELETE CASCADE,
-    rsu_id           UUID NOT NULL REFERENCES rsus(id)          ON DELETE CASCADE,
-    raffle_event_id  UUID NOT NULL REFERENCES raffle_events(id) ON DELETE CASCADE,
-    block_start      TEXT NOT NULL,
-    block_end        TEXT NOT NULL,
-    block_size       INTEGER NOT NULL,
-    numbers_used     INTEGER NOT NULL DEFAULT 0,
-    next_sequence    INTEGER NOT NULL DEFAULT 1,
-    expires_at       TIMESTAMPTZ,
-    is_active        BOOLEAN NOT NULL DEFAULT TRUE,
-    created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
 
 -- Orders -------------------------------------------------------------
 CREATE TABLE orders (
     id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     validation_number TEXT UNIQUE NOT NULL,
-    event_id         UUID NOT NULL REFERENCES raffle_events(id) ON DELETE CASCADE,
+    event_id         UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
     package_id       UUID REFERENCES ticket_packages(id),
     rsu_id           UUID REFERENCES rsus(id),
     rsu_allocation_id UUID REFERENCES rsu_allocations(id),
@@ -322,8 +338,11 @@ CREATE TABLE orders (
     source           TEXT NOT NULL REFERENCES order_sources(key),
     operator_id      UUID, -- nullable for online sales
     is_offline_sale  BOOLEAN NOT NULL DEFAULT FALSE,
-    offline_sync_status TEXT REFERENCES offline_sync_statuses(key),
-    offline_created_at   TIMESTAMPTZ,
+    sold_at          TIMESTAMPTZ NOT NULL, -- timestamp when the order was sold
+    sold_by          UUID,  -- null for online sales
+    voided_at        TIMESTAMPTZ, -- timestamp when the order was voided, if applicable
+    voided_by        UUID, -- user who voided the order, if applicable
+    voided_reason    TEXT, -- reason for voiding the order, if applicable
     created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     created_by       UUID,
     updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -333,15 +352,10 @@ CREATE TABLE orders (
 -- Tickets ------------------------------------------------------------
 CREATE TABLE tickets (
     id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    event_id         UUID NOT NULL REFERENCES raffle_events(id) ON DELETE CASCADE,
+    event_id         UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
     draw_number      INTEGER NOT NULL,
     state            TEXT NOT NULL REFERENCES ticket_states(key),
     order_id         UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
-    sold_at          TIMESTAMPTZ NOT NULL,
-    sold_by          UUID,  -- null for online
-    voided_at        TIMESTAMPTZ,
-    voided_by        UUID,
-    voided_reason    TEXT,
     created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE(event_id, draw_number) -- ensures unique draw numbers per event
@@ -351,11 +365,16 @@ CREATE TABLE tickets (
 ### Indexes
 
 ```sql
-CREATE INDEX idx_orders_event          ON orders(event_id);
+CREATE INDEX idx_orders_event ON orders(event_id);
 CREATE INDEX idx_orders_payment_status ON orders(payment_status);
-CREATE INDEX idx_tickets_event_state   ON tickets(event_id, state);
-CREATE INDEX idx_tickets_order         ON tickets(order_id);
-CREATE INDEX idx_rsu_alloc_event       ON rsu_allocations(raffle_event_id);
+CREATE INDEX idx_tickets_event_state ON tickets(event_id, state);
+CREATE INDEX idx_tickets_order ON tickets(order_id);
+CREATE INDEX idx_rsu_alloc_event ON rsu_allocations(event_id);
+CREATE INDEX idx_rsu_allocation_rsu ON rsu_allocations(rsu_id);
+CREATE INDEX idx_rsu_allocation_state ON rsu_allocations(state);
+CREATE INDEX idx_orders_created_at ON orders(created_at);
+CREATE INDEX idx_orders_event_status ON orders(event_id, payment_status);
+CREATE INDEX idx_orders_sold_at ON orders(sold_at);
 ```
 
 ---
@@ -366,12 +385,12 @@ CREATE INDEX idx_rsu_alloc_event       ON rsu_allocations(raffle_event_id);
 -- Draw Executions ----------------------------------------------------
 CREATE TABLE draw_executions (
     id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    raffle_event_id  UUID NOT NULL REFERENCES raffle_events(id) ON DELETE CASCADE,
+    event_id         UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
     state            TEXT NOT NULL, -- pending | in_progress | completed | failed
     started_at       TIMESTAMPTZ NOT NULL,
     rng_seed         TEXT NOT NULL,
     conducted_by     UUID NOT NULL,
-    system_checksum  TEXT NOT NULL,
+    system_checksum  TEXT,  -- Nullable to accommodate external logging systems
     created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -404,84 +423,61 @@ CREATE TABLE prize_claims (
 
 ```sql
 CREATE INDEX idx_draw_results_execution ON draw_results(draw_execution_id);
-CREATE INDEX idx_prize_claims_result    ON prize_claims(draw_result_id);
+CREATE INDEX idx_prize_claims_result ON prize_claims(draw_result_id);
+CREATE INDEX idx_draw_result_ticket ON draw_results(winning_ticket_id);
 ```
 
 ---
 
-## 7 – Critical Event Logging
+## 8 – Configuration Management
+
+> Note: System and organization configurations are now managed outside the database through AWS SSM Parameter Store. This provides better integration with AWS services, simplified access control, and version history management without requiring database tables.
+
+### Indexes
 
 ```sql
--- Critical events per GLI-31 ----------------------------------------
-CREATE TABLE critical_events (
-    id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    event_type       TEXT NOT NULL,
-    event_id         UUID,   -- nullable, depends on context
-    rsu_id           UUID,
-    user_id          UUID,
-    severity         TEXT NOT NULL, -- INFO | WARN | ERROR
-    description      TEXT,
-    metadata         JSONB DEFAULT '{}'::JSONB,
-    timestamp        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    ttl              BIGINT  -- epoch when record will expire (if using Dynamo in prod)
-);
-
-CREATE INDEX idx_critical_events_type_time ON critical_events(event_type, timestamp DESC);
-```
-
----
-
-## 8 – System Configuration (Versioned)
-
-```sql
-CREATE TABLE system_configurations (
-    id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    version          TEXT NOT NULL,
-    effective_from   TIMESTAMPTZ NOT NULL,
-    effective_to     TIMESTAMPTZ,
-    settings         JSONB NOT NULL,
-    created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    created_by       UUID
-);
+CREATE INDEX idx_organization_settings_gin ON organizations USING gin (settings jsonb_path_ops);
 ```
 
 ---
 
 ## 9 – Audit Trail
 
-Critical tables employ lightweight `created_* / updated_*` columns, **plus** a centralized audit log for immutable history.
-
-```sql
-CREATE TABLE audit_log (
-    id               BIGSERIAL PRIMARY KEY,
-    table_name       TEXT NOT NULL,
-    operation        TEXT NOT NULL CHECK (operation IN ('INSERT','UPDATE','DELETE')),
-    record_id        UUID NOT NULL,
-    old_data         JSONB,
-    new_data         JSONB,
-    changed_by       UUID,
-    changed_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX idx_audit_log_table_time ON audit_log(table_name, changed_at DESC);
-```
-
-> **Trigger strategy (not shown):** For each critical table (`raffle_events`, `orders`, `tickets`, `prizes`, etc.) create `FOR EACH ROW` triggers that write detailed before/after rows into `audit_log`.
+Critical tables employ lightweight `created_* / updated_*` columns for basic change tracking. Comprehensive audit logging is now handled by the API applications and stored in CloudWatch for better integration with AWS services and improved separation of concerns.
 
 ---
 
-## 10 – Seed Data Examples (optional)
+## 10 – Verification
+
+> Note: Verification tracking is now handled by the API applications rather than being stored in the database. This provides better separation of concerns, leverages AWS services for verification tracking, and allows for more sophisticated monitoring and alerting without requiring a dedicated database table.
+
+---
+
+## 11 – Seed Data Examples (optional)
 
 Below is **illustrative** seed data for lookup tables. Load via migrations, _not_ in production scripts.
 
 ```sql
--- Raffle event states
-INSERT INTO raffle_event_states(key, description) VALUES
+-- Event states
+INSERT INTO event_states(key, description) VALUES
   ('created',   'Initial state after creation'),
+  ('configured', 'All required parameters set'),
   ('active',    'Sales are open'),
   ('suspended', 'Sales temporarily paused'),
-  ('closed',    'Sales closed, awaiting draw'),
+  ('sales_closed', 'Sales closed'),
+  ('reconciling', 'Awaiting RSU synchronization'),
+  ('reconciled', 'Admin confirmed all sales accounted for'),
+  ('drawing_ready', 'Ready for draw to begin'),
+  ('completed', 'Draw completed, winners determined'),
   ('cancelled', 'Event cancelled');
+
+-- Default roles
+INSERT INTO roles(id, name, description) VALUES
+  (gen_random_uuid(), 'System Administrator', 'Full access to all system functions'),
+  (gen_random_uuid(), 'Organization Administrator', 'Full access within their organization'),
+  (gen_random_uuid(), 'Raffle Manager', 'Can create and manage raffles, but not system settings'),
+  (gen_random_uuid(), 'RSU Operator', 'Can sell tickets and manage assigned RSUs'),
+  (gen_random_uuid(), 'Viewer', 'Read-only access to reports and raffle information');
 ```
 
 _(Add similar inserts for the other lookup tables.)_
@@ -495,6 +491,51 @@ _(Add similar inserts for the other lookup tables.)_
 3. All monetary amounts are `INTEGER` in lowest denomination – rename to `*_cents` if desired for clarity.
 4. Time-series data (e.g., ticket sales history) can be extracted into append-only tables later to manage OLTP vs. analytics workloads.
 5. Partitioning (e.g., by `event_id` for `tickets`) can be introduced when volume dictates, without affecting the logical model.
+6. The RBAC system provides fine-grained permission management through roles and permissions.
+7. **Table Naming Consistency**: The schema uses consistent naming conventions, with the generic `events` table replacing the more specific `raffle_events`. This approach allows for future expansion to other types of events without schema changes.
+8. **Ticket Status at Order Level**: Ticket status tracking fields (`sold_at`, `sold_by`, `voided_at`, `voided_by`, `voided_reason`) are stored at the order level rather than the ticket level to better reflect the business process where entire orders are sold or voided as a unit. This design change improves data consistency and reduces redundancy since these fields apply to the entire order transaction rather than individual tickets.
+9. **Nullable System Checksum**: The `system_checksum` field in the `draw_executions` table is nullable to accommodate external logging systems like CloudWatch. This allows for flexibility in how system integrity is verified, with checksums either stored in the database or managed by external AWS services.
+10. **On-Device Validation Number Generation**: Validation numbers are now generated directly by RSU devices without requiring pre-allocated blocks. Each RSU creates globally unique validation numbers on-device, eliminating the need for the previously used `validation_number_blocks` table. This approach simplifies the system architecture and reduces database complexity while maintaining the uniqueness guarantees required for validation numbers.
+11. **External Event Logging**: Critical events are now logged to CloudWatch instead of being stored in the database. This provides better separation of concerns, leverages AWS services for logging, and allows for more sophisticated monitoring, alerting, and retention policies.
+12. **AWS Parameter Store for Configuration**: System and organization configurations are now managed through AWS SSM Parameter Store instead of database tables. This approach provides better integration with AWS services, simplified access control, automatic encryption, and built-in version history management without requiring custom database tables and versioning logic.
+13. **CloudWatch for Audit Logging**: Audit logging is now handled by the API applications and stored in CloudWatch rather than using database triggers and an audit_log table. This approach provides better separation of concerns, leverages AWS services for comprehensive logging, and allows for more sophisticated monitoring, alerting, and retention policies without adding overhead to database operations.
+14. **External Verification Tracking**: Verification tracking is now handled by the API applications rather than being stored in the database. This provides better separation of concerns and leverages AWS services for verification tracking.
+15. **Dynamic Ticket Count Calculation**: Total tickets sold is calculated dynamically rather than stored as a redundant counter in the events table. This calculation can be performed using a simple SQL query that counts tickets with a valid state for a given event:
+
+    ```sql
+    SELECT COUNT(*) FROM tickets
+    WHERE event_id = :event_id
+    AND state = 'active';
+    ```
+
+    This approach ensures data consistency by deriving the count from the actual ticket records rather than maintaining a separate counter that could become out of sync.
+
+16. **Dynamic Jackpot Calculation**: Jackpot amounts are calculated dynamically based on ticket sales and prize configurations rather than being stored as a static value. For percentage-based prizes, the jackpot can be calculated as:
+
+    ```sql
+    SELECT
+      p.id AS prize_id,
+      p.name AS prize_name,
+      p.percentage,
+      (SELECT COUNT(*) FROM tickets t WHERE t.event_id = e.id AND t.state = 'active') AS tickets_sold,
+      (SELECT COUNT(*) FROM tickets t WHERE t.event_id = e.id AND t.state = 'active') *
+        (SELECT price FROM ticket_packages WHERE id = o.package_id) * (p.percentage / 100.0) AS jackpot_amount
+    FROM
+      events e
+      JOIN prizes p ON p.event_id = e.id
+      JOIN orders o ON o.event_id = e.id
+    WHERE
+      e.id = :event_id
+      AND p.type = 'percentage'
+    GROUP BY
+      p.id, p.name, p.percentage, e.id;
+    ```
+
+    This dynamic calculation ensures that the jackpot amount always reflects the current ticket sales and prize configuration, eliminating the risk of inconsistencies that could occur with a stored value.
+
+17. **Maximum Tickets per Event**: The `max_tickets` field in the `events` table defines the total number of tickets that can be sold for an event, providing a clear upper bound for ticket allocation and sales. This replaces the need for ticket count fields in package tables, as the system now uses the event-level maximum to control ticket allocation.
+
+18. **Simplified Ticket Package Structure**: The ticket package structure has been simplified by removing the `ticket_count` field from both `ticket_package_templates` and `ticket_packages` tables. This change aligns with how ticket allocation actually works in the system, where the maximum number of tickets is defined at the event level rather than the package level.
 
 ---
 
