@@ -16,3 +16,7 @@
   - [ ] Ensure that the schemas can support new features
   - [ ] Ensure proper logging tables are in place for tracking changes for critical data
   - [ ] Write the SQL as migrations using `github.com/jackc/pgx/v5` for Go
+
+## TODO before go-live
+
+- [ ] Daktronics feed (jumbotron feed for data)

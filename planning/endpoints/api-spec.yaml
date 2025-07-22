@@ -918,8 +918,12 @@ paths:
       tags: ["System"]
       summary: "Trigger system verification"
       responses:
-        "202":
-          description: "Verification started"
+        "200":
+          description: "System verification status"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SystemVerification"
   /v1/system/configuration:
     get:
       tags: ["System"]
@@ -1261,6 +1265,63 @@ components:
         blockStart: { type: string }
         blockEnd: { type: string }
         blockSize: { type: integer }
+    SystemVerification:
+      type: object
+      required: [timestamp, status, environment, checksums, aggregate_checksum]
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+          description: "When the verification was performed"
+        status:
+          type: string
+          enum: [VALID, INVALID, ERROR]
+          description: "Overall verification status"
+        environment:
+          type: string
+          description: "Environment being verified (prod, staging, dev)"
+        message:
+          type: string
+          description: "Human-readable status message"
+        checksums:
+          type: object
+          additionalProperties:
+            type: object
+            properties:
+              lambda_name:
+                type: string
+              expected:
+                type: string
+                description: "Expected CodeSha256 from S3"
+              actual:
+                type: string
+                description: "Actual CodeSha256 from Lambda"
+              status:
+                type: string
+                enum: [VALID, INVALID, ERROR]
+              last_modified:
+                type: string
+                format: date-time
+              error:
+                type: string
+                description: "Error message if status is ERROR"
+        aggregate_checksum:
+          type: object
+          properties:
+            expected:
+              type: string
+              description: "Expected aggregate checksum from S3"
+            actual:
+              type: string
+              description: "Calculated aggregate checksum"
+            status:
+              type: string
+              enum: [VALID, INVALID]
+        errors:
+          type: array
+          items:
+            type: string
+          description: "List of any errors encountered during verification"
 
   ########################################
   # Standard Responses                   #

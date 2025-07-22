@@ -78,11 +78,10 @@ All critical services are implemented as Lambda functions using Go runtime for:
 - Long-term audit log retention
 - Lifecycle policies for cost optimization
 
-**Configuration Storage**: SSM Parameter Store
+**Configuration Storage**:
 
-- System configuration
-- Expected checksums for verification
-- Secure credential management
+- S3: Expected checksums for verification
+- SSM Parameter Store: System configuration and secure credential management
 
 #### 3.3 Frontend Applications
 

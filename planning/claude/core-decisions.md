@@ -128,7 +128,7 @@
 
 14. **System Verification**
 
-- A verification Lambda function will pull the expected checksums of the critical files from SSM Parameter Store and compare those the value of each Lambda function's `GetFunctionConfiguration.CodeSha256` values.
+- A verification Lambda function will pull the expected checksums of the critical files from a dedicated S3 bucket and compare those the value of each Lambda function's `GetFunctionConfiguration.CodeSha256` values.
 - The verification Lambda will be scheduled to execute daily, and will be executable on-demand via an API Gateway endpoint.
 - The results will be logged to CloudWatch logs, and will be uploaded to an S3 bucket for display on the public website.
 
